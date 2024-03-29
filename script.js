@@ -208,7 +208,7 @@ window.addEventListener("resize",()=>{
     clearTimeout(global.var.resizeTimeout);
     global.var.resizeTimeout=setTimeout(async()=>{
         "use strict";
-        const size=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale);
+        const size=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale*window.devicePixelRatio);
         if(size!==html.canvas.width){
             global.render.break();
             global.render.resume();
@@ -225,14 +225,14 @@ window.addEventListener("resize",()=>{
 
 global.render.reset();
 global.view.width=global.view.height=//TODO
-html.canvas.width=html.canvas.height=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale);
+html.canvas.width=html.canvas.height=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale*window.devicePixelRatio);
 //@ts-ignore global.view iterator has same number of elements as draw has parameters and in the same order
 draw(...global.view);
 
-// TODO r-click menu settings>dialog / css-checker>white,light,dark,black,off / mandelbrot-type>smooth(default),spiky,noodles (recalc) / css-smooth>off(default),low,medium,high / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200% / link to GitHub repo
+// TODO context-menu: redraw / reset zoom / settings>dialog / css-checker>white,light,dark,black,off / mandelbrot-type>smooth(default),spiky,noodles (recalc) / css-smooth>off(default),low,medium,high / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200% / link to GitHub repo
 // TODO > settings-dialog: pos (recalc new areas) / scale (recalc) / hue start,end (draw preview)
 // TODO save mandelbrot values in typed f32array for faster rerendering when chaning hue ?
-// TODO mouse crosshair ~ draw box and click inside = zoom to that area ~ right-click to zoom out ?
+// TODO mouse crosshair ~ draw box and click inside = zoom to that area ~ zoom out ?
 // TODO pan controls like in GIF-decoder
 // TODO ! only draw new pixels when moving view around or resize larger window axis ~ 500ms like window-resize
 // TODO draw full screen ? base is still square (no redraw when resize larger window axis)
