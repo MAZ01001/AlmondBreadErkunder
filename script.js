@@ -41,9 +41,9 @@ const map=(n,x,y,x2,y2)=>{
 const hueToRGB=hue=>[1/3,0,-1/3].map(v=>{
     "use strict";
     const t=(n=>n<0?n+1:n>1?n-1:n)(hue+v);
-    if(t<1/6)return t*1530;
-    if(t<.5)return 255;
-    if(t<2/3)return(2/3-t)*1530;
+    if(t<1/6)return t*0x5FA;
+    if(t<.5)return 0xFF;
+    if(t<2/3)return(2/3-t)*0x5FA;
     return 0;
 });
 /**
@@ -163,7 +163,7 @@ const global=Object.freeze({
     }),
     var:Object.seal({
         resizeTimeout:NaN,
-        scale:.25
+        scale:1
     })
 });
 
