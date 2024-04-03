@@ -3,6 +3,12 @@ body{
     overflow: hidden;
     background-color: #000;
 }
+canvas#canvas,
+canvas#cursor{
+    width: 100vw;
+    height: 100vh;
+    image-rendering: pixelated;
+}
 canvas#canvas{
     --checker-a: #EEE;--checker-b: #FFF;
     --checker-a: #888;--checker-b: #AAA;
@@ -11,20 +17,22 @@ canvas#canvas{
     /* --checker-a: transparent;--checker-b: transparent; */
     --checker-len: 1rem;
     background: repeating-conic-gradient(var(--checker-a) 0 25%, var(--checker-b) 0 50%) 0 / var(--checker-len) var(--checker-len);
-    width: 100vw;
-    height: 100vh;
     object-fit: contain;
-    image-rendering: pixelated;
 }
+canvas#cursor{pointer-events: none;}
+canvas#cursor.click{pointer-events: all;}
+canvas#cursor,
 progress#loading{
     position: absolute;
     translate: -50% -50%;
     left: 50%;
     top: 50%;
+}
+progress#loading{
     width: min(max(50vw,3rem),100vw);
     height: 2rem;
     accent-color: #0F0;
-    transition: opacity 100ms ease-out;
+    transition: opacity 100ms ease-in;
 }
 progress#loading.hide{
     visibility: hidden;
