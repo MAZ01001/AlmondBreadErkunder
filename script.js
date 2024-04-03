@@ -46,132 +46,106 @@ const hueToRGB=hue=>[1/3,0,-1/3].map(v=>{
     if(t<2/3)return(2/3-t)*0x5FA;
     return 0;
 });
-/**
- * ## Calculates the {@linkcode mandelbrot} set and returns a generator for rendering the given rectangle ({@linkcode width}*{@linkcode height})
- * {@linkcode width} to {@linkcode height} and {@linkcode imin} ↔ {@linkcode imax} to {@linkcode imin} ↔ {@linkcode imax} should have the same aspect ratio or the resulting image will be distorted
- * @param {number} width - width of the image
- * @param {number} height - height of the image
- * @param {number} limit - limit for the mandelbrot algorithm
- * @param {number} rmin - start value of real part in mandelbrot set
- * @param {number} rmax - end value of real part in mandelbrot set
- * @param {number} imin - start value of imaginary part in mandelbrot set
- * @param {number} imax - end value of imaginary part in mandelbrot set
- * @param {number} [hueMin] - hue range minimum (float) - default `0`
- * @param {number} [hueMax] - hue range maximum (float) - default `1`
- * @returns {Generator<[ImageData|null,number],void,unknown>} `[NULL, progress]` for each pixel and `[img strip, Y offset]` for each row of the given rectangle ({@linkcode width}*{@linkcode height})
- */
-const imageStrips=function*(width,height,limit,rmin,rmax,imin,imax,hueMin,hueMax){
-    "use strict";
-    const pixelLine=new ImageData(width,1),
-        invPixels=1/(width*height),
-        /**@type {[number,number]}*/
-        hue=[hueMin??0,hueMax??1];
-    for(let x=0,y=0;y<height;y++){
-        for(x=0;x<width;x++){
-            const value=mandelbrot(map(x,0,width-1,rmin,rmax),map(y,0,height-1,imin,imax),limit);
-            if(value<limit)pixelLine.data.set([...hueToRGB(map(value,1,limit,...hue)),0xFF],x*4);
-            else pixelLine.data[x*4+3]=0;
-            yield[null,(y*width+x)*invPixels];
-        }
-        yield[pixelLine,y];
-    }
-};
 
 const html=Object.freeze({
-    /**@type {HTMLCanvasElement}*///@ts-ignore element does exist in DOM
+    /**@type {HTMLCanvasElement} main canvas*///@ts-ignore element does exist in DOM
     canvas:document.getElementById("canvas"),
-    /**@type {HTMLProgressElement}*///@ts-ignore element does exist in DOM
+    /**@type {HTMLCanvasElement} canvas for crosshair*///@ts-ignore element does exist in DOM
+    cursor:document.getElementById("cursor"),
+    /**@type {HTMLProgressElement} loading bar*///@ts-ignore element does exist in DOM
     loading:document.getElementById("loading"),
-    /**@type {CanvasRenderingContext2D}*///@ts-ignore element does exist in DOM & gets checked for NULL later on
-    cnx:document.getElementById("canvas").getContext("2d")
+    /**@type {CanvasRenderingContext2D} 2d context for {@linkcode html.canvas}*///@ts-ignore element does exist in DOM & gets checked for NULL later on
+    cnx:document.getElementById("canvas").getContext("2d"),
+    /**@type {CanvasRenderingContext2D} 2d context for {@linkcode html.cursor}*///@ts-ignore element does exist in DOM & gets checked for NULL later on
+    crx:document.getElementById("cursor").getContext("2d")
 })
-if(html.cnx==null)throw"couldn't get canvas 2d context";
+if(html.cnx==null||html.crx==null)throw"couldn't get canvas 2d context";
+
+html.cnx.imageSmoothingEnabled=false;
+html.crx.imageSmoothingEnabled=false;
 
 const global=Object.freeze({
-    mouse:new class{
-        // TODO ~ move variables to global.var and event listeners outside
-        /**@type {number} current Mouse X position */
-        #x=0;get x(){return this.#x;}
-        /**@type {number} current Mouse Y position */
-        #y=0;get y(){return this.#y;}
-        /**@type {boolean} `true` when a mouse button is held down (see {@linkcode hold} on which element it started)*/
-        #hold=false;get hold(){return this.#hold;}
-        /**@type {EventTarget|null}*/
-        #drag=null;get drag(){return this.#drag;}
-        /**@type {NaN|0|1|2} `NaN` none / 0 left / 1 middle / 2 right*/
-        #button=NaN;get button(){return this.#button;}
-        constructor(){
-            "use strict";
-            window.addEventListener("mousemove",ev=>{
-                "use strict";
-                this.#x=ev.clientX;
-                this.#y=ev.clientY;
-            },{passive:true});
-            window.addEventListener("mousedown",ev=>{
-                "use strict";
-                this.#button=ev.button;
-                this.#hold=true;
-                this.#drag=ev.target;
-            },{passive:true});
-            window.addEventListener("mouseup",ev=>{
-                "use strict";
-                this.#button=NaN;
-                this.#hold=false;
-                this.#drag=null;
-            },{passive:true});
-        }
-    }(),
     render:new class{
         #pause=false;
         #break=false;
         #running=false;
+        /**if a calculation/draw is currently running (or is not fully aborted yet)*/
         get running(){return this.#running;}
+        /**pause currently running calculation/draw*/
         pause(){this.#pause=true;}
+        /**resumes currently paused calculation/draw*/
         resume(){this.#pause=false;}
+        /**aborts currently running calculation/draw*/
         break(){this.#break=true;}
+        /**resets variables for next calculation/draw*/
         reset(){this.#break=(this.#pause=false);}
+        /**indicates the start of a new calculation/draw*/
         start(){this.#running=true;}
+        /**indicates the end of the current calculation/draw*/
         end(){this.#running=false;}
+        /**call during calculation/draw for an opportunity to pause/resume/break*/
         async check(){
             "use strict";
             for(;this.#pause;await new Promise(E=>setTimeout(E,100)));
             return this.#break;
         }
     },
-    view:Object.seal({
-        width:10,
-        height:10,
-        limit:40,
-        rmin:-2,
-        rmax:.6,
-        imin:-1.3,
-        imax:1.3,
-        hueMin:-1.4,
-        hueMax:-.8,
-        // TODO ~ move to global.var
-        [Symbol.iterator]:function*(){
-            yield global.view.width;
-            yield global.view.height;
-            yield global.view.limit;
-            yield global.view.rmin;
-            yield global.view.rmax;
-            yield global.view.imin;
-            yield global.view.imax;
-            yield global.view.hueMin;
-            yield global.view.hueMax;
-        }
+    mouse:Object.seal({
+        /**@type {number} current mouse X position*/
+        x:0,
+        /**@type {number} current mouse Y position*/
+        y:0,
+        /**@type {NaN|0|1|2} `NaN` none / 0 left / 1 middle / 2 right*/
+        button:NaN,
+        /**@type {boolean} `true` when a mouse button is held down (see {@linkcode global.mouse.drag} on which element it started and {@linkcode global.mouse.dragX} and {@linkcode global.mouse.dragY} where it started)*/
+        hold:false,
+        /**@type {EventTarget|null} HTML element on which the dragging started and `null` when {@linkcode global.mouse.hold} is `false`*/
+        drag:null,
+        /**@type {number} mouse drag start X position (updated on `mousedown`)*/
+        dragX:0,
+        /**@type {number} mouse drag start Y position (updated on `mousedown`)*/
+        dragY:0,
+        /**@type {boolean} set to `true` on `mouseup` for showing the (clickable) zoom-in area ~ then `false`*/
+        up:false,
+        /**@type {number} mouse drag end X position (updated on `mouseup`)*/
+        upX:0,
+        /**@type {number} mouse drag end Y position (updated on `mouseup`)*/
+        upY:0
     }),
     var:Object.seal({
+        /**@type {number} timeout ID for resize delay*/
         resizeTimeout:NaN,
-        scale:1
+        /**@type {number} previous window width (physical pixels)*/
+        resizeWidth:Math.trunc(window.innerWidth*window.devicePixelRatio),
+        /**@type {number} previous window height (physical pixels)*/
+        resizeHeight:Math.trunc(window.innerHeight*window.devicePixelRatio),
+        /**@type {number} scale of {@linkcode html.canvas} - does not change resolution but influences coordinates when choosing area*/
+        zoom:1,
+        /**@type {number} horizontal offset of {@linkcode html.canvas} from left edge*/
+        panX:0,
+        /**@type {number} vertical offset of {@linkcode html.canvas} from top edge*/
+        panY:0,
+        /**@type {number} current value for {@linkcode draw} (parameter[0] `limit`)*/
+        limit:40,
+        /**@type {number} current value for {@linkcode draw} (parameter[1] `rmin`)*/
+        rmin:-2,
+        /**@type {number} current value for {@linkcode draw} (parameter[2] `rmax`)*/
+        rmax:.6,
+        /**@type {number} current value for {@linkcode draw} (parameter[3] `imin`)*/
+        imin:-1.3,
+        /**@type {number} current value for {@linkcode draw} (parameter[4] `imax`)*/
+        imax:1.3,
+        /**@type {number} current value for {@linkcode draw} (parameter[5] `hueMin`)*/
+        hueMin:-1.4,
+        /**@type {number} current value for {@linkcode draw} (parameter[6] `hueMax`)*/
+        hueMax:-.8
     })
 });
 
 /**
- * ## Draws the given rectangle ({@linkcode width}*{@linkcode height}) to {@linkcode html.cnx} ({@linkcode html.canvas}), updates {@linkcode html.loading}, and responds to {@linkcode global.render} signals
- * _waits for a script-cycle each pixel and a full-cycle each row (after drawing)_
- * @param {number} width - width of the image
- * @param {number} height - height of the image
+ * ## Calculates the {@linkcode mandelbrot} set and draws it to {@linkcode html.cnx} ({@linkcode html.canvas}), updates {@linkcode html.loading}, and responds to {@linkcode global.render} signals
+ * {@linkcode html.canvas.width} and {@linkcode html.canvas.height} should be modified to the same aspect ratio as {@linkcode imin} ↔ {@linkcode imax} and {@linkcode imin} ↔ {@linkcode imax} or the resulting image will be distorted\
+ * _waits for a script-cycle each pixel, a full-cycle each row (after drawing), and can be stopped with {@linkcode global.render}_
  * @param {number} limit - limit for the mandelbrot algorithm
  * @param {number} rmin - start value of real part in mandelbrot set
  * @param {number} rmax - end value of real part in mandelbrot set
@@ -180,26 +154,120 @@ const global=Object.freeze({
  * @param {number} [hueMin] - hue range minimum (float) - default `0`
  * @param {number} [hueMax] - hue range maximum (float) - default `1`
  */
-const draw=async(width,height,limit,rmin,rmax,imin,imax,hueMin,hueMax)=>{
+const draw=async(limit,rmin,rmax,imin,imax,hueMin,hueMax)=>{
     "use strict";
     global.render.start();
     html.loading.removeAttribute("value");
     html.loading.classList.remove("hide");
     await new Promise(E=>setTimeout(E,0));
-    for(const[imgStrip,yOffset]of imageStrips(width,height,limit,rmin,rmax,imin,imax,hueMin,hueMax)){
-        if(imgStrip==null){
-            html.loading.value=yOffset;
+    const pixelLine=new ImageData(html.canvas.width,1),
+        partPixels=1/(html.canvas.width*html.canvas.height);
+    hueMin??=0;
+    hueMax??=0;
+    outer:for(let x=0,y=0;y<html.canvas.height;y++){
+        for(x=0;x<html.canvas.width;x++){
+            const value=mandelbrot(map(x,0,html.canvas.width-1,rmin,rmax),map(y,0,html.canvas.height-1,imin,imax),limit);
+            if(value<limit)pixelLine.data.set([...hueToRGB(map(value,1,limit,hueMin,hueMax)),0xFF],x*4);
+            else pixelLine.data[x*4+3]=0;
+            html.loading.value=(y*html.canvas.width+x)*partPixels;
             await Promise.resolve();
-            if(await global.render.check())break;
-            continue;
+            if(await global.render.check())break outer;
         }
-        html.cnx.putImageData(imgStrip,0,yOffset);
+        html.cnx.putImageData(pixelLine,0,y);
         await new Promise(E=>setTimeout(E,0));
         if(await global.render.check())break;
     }
     html.loading.classList.add("hide");
     global.render.end();
 };
+
+window.requestAnimationFrame(function cursor(){
+    "use strict";
+    html.cursor.width=Math.trunc(window.innerWidth*window.devicePixelRatio);
+    html.cursor.height=Math.trunc(window.innerHeight*window.devicePixelRatio);
+    //~ crosshair
+    html.crx.lineWidth=1;
+    html.crx.strokeStyle="#444";
+    html.crx.moveTo(global.mouse.x,0);
+    html.crx.lineTo(global.mouse.x,html.cursor.height);
+    html.crx.stroke();
+    html.crx.moveTo(0,global.mouse.y);
+    html.crx.lineTo(html.cursor.width,global.mouse.y);
+    html.crx.stroke();
+    if(global.mouse.hold||global.mouse.up){
+        //~ selection box
+        html.crx.fillStyle="#F904";
+        html.crx.fillRect(
+            Math.min(global.mouse.dragX,global.mouse.up?global.mouse.upX:global.mouse.x),
+            Math.min(global.mouse.dragY,global.mouse.up?global.mouse.upY:global.mouse.y),
+            Math.abs(global.mouse.dragX-(global.mouse.up?global.mouse.upX:global.mouse.x)),
+            Math.abs(global.mouse.dragY-(global.mouse.up?global.mouse.upY:global.mouse.y))
+        );
+        // TODO show coordinates?
+    }
+    window.requestAnimationFrame(cursor);
+});
+
+window.addEventListener("mousemove",ev=>{
+    "use strict";
+    global.mouse.x=ev.clientX;
+    global.mouse.y=ev.clientY;
+},{passive:true});
+window.addEventListener("mousedown",ev=>{
+    "use strict";
+    if(global.mouse.up)return;
+    global.mouse.button=ev.button;
+    global.mouse.hold=true;
+    global.mouse.drag=ev.target;
+    global.mouse.dragX=ev.clientX;
+    global.mouse.dragY=ev.clientY;
+},{passive:true});
+window.addEventListener("mouseup",ev=>{
+    "use strict";
+    if(global.mouse.up)return;
+    global.mouse.button=NaN;
+    global.mouse.hold=false;
+    global.mouse.drag=null;
+    global.mouse.up=true;
+    global.mouse.upX=ev.clientX;
+    global.mouse.upY=ev.clientY;
+    html.cursor.classList.add("click");
+},{passive:true});
+
+// TODO create function zoomIn() ~ select area, confirm, then call zoomIn() to handle (abort draw ?), get coordinates, rescale canvas and initiate new draw
+html.cursor.addEventListener("click",async()=>{
+    "use strict";
+    global.render.break();
+    global.render.resume();
+    for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
+    global.render.reset();
+    //~ zoom in to selected area (and update canvas size/aspect-ratio accordingly)
+    const
+        [cw,ch]=(z=>[html.canvas.width*z,html.canvas.height*z])(global.var.zoom*.5),
+        [ww,wh]=(dpr=>[window.innerWidth*dpr,window.innerHeight*dpr])(window.devicePixelRatio*.5),
+        [cl,cr]=(wwp=>[wwp-cw,wwp+cw])(ww+global.var.panX),
+        [ct,cb]=(whp=>[whp-ch,whp+ch])(wh+global.var.panY),
+        [ml,mr]=global.mouse.dragX<global.mouse.upX?[global.mouse.dragX,global.mouse.upX]:[global.mouse.upX,global.mouse.dragX],
+        [mt,mb]=global.mouse.dragY<global.mouse.upY?[global.mouse.dragY,global.mouse.upY]:[global.mouse.upY,global.mouse.dragY],
+        rmin=map(ml,cl,cr,global.var.rmin,global.var.rmax),
+        rmax=map(mr,cl,cr,global.var.rmin,global.var.rmax),
+        imin=map(mt,ct,cb,global.var.imin,global.var.imax),
+        imax=map(mb,ct,cb,global.var.imin,global.var.imax),
+        width=Math.trunc(window.innerWidth*window.devicePixelRatio),
+        height=Math.trunc(window.innerHeight*window.devicePixelRatio);
+    [html.canvas.width,html.canvas.height]=(sw=>sw>width?[width,(mb-mt)*(width/(mr-ml))]:[sw,height])((mr-ml)*(height/(mb-mt)));
+    draw(
+        global.var.limit,
+        (global.var.rmin=rmin),
+        (global.var.rmax=rmax),
+        (global.var.imin=imin),
+        (global.var.imax=imax),
+        global.var.hueMin,
+        global.var.hueMax
+    );
+    global.mouse.up=false;
+    html.cursor.classList.remove("click");
+},{passive:true});
 
 window.addEventListener("resize",()=>{
     "use strict";
@@ -208,31 +276,50 @@ window.addEventListener("resize",()=>{
     clearTimeout(global.var.resizeTimeout);
     global.var.resizeTimeout=setTimeout(async()=>{
         "use strict";
-        const size=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale*window.devicePixelRatio);
-        if(size!==html.canvas.width){
+        const
+            width=Math.trunc(window.innerWidth*window.devicePixelRatio),
+            height=Math.trunc(window.innerHeight*window.devicePixelRatio),
+            [newWidth,newHeight]=(scaleWidth=>scaleWidth>width?[width,html.canvas.height*(width/html.canvas.width)]:[scaleWidth,height])(html.canvas.width*(height/html.canvas.height));
+        if(html.canvas.width!==newWidth||html.canvas.height!==newHeight){
             global.render.break();
             global.render.resume();
             for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
             global.render.reset();
-            global.view.width=global.view.height=//TODO
-            html.canvas.width=html.canvas.height=size;
-            //@ts-ignore global.view iterator has same number of elements as draw has parameters and in the same order
-            draw(...global.view);
+            html.canvas.width=newWidth;
+            html.canvas.height=newHeight;
+            draw(
+                global.var.limit,
+                global.var.rmin,
+                global.var.rmax,
+                global.var.imin,
+                global.var.imax,
+                global.var.hueMin,
+                global.var.hueMax
+            );
         }else global.render.resume();
+        global.var.resizeWidth=width;
+        global.var.resizeHeight=height;
     },500);
 },{passive:true});
 
+// TODO ~ override defaults from browser history or local storage (in that order)
 
 global.render.reset();
-global.view.width=global.view.height=//TODO
-html.canvas.width=html.canvas.height=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*global.var.scale*window.devicePixelRatio);
-//@ts-ignore global.view iterator has same number of elements as draw has parameters and in the same order
-draw(...global.view);
+html.canvas.width=html.canvas.height=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*window.devicePixelRatio);
+draw(
+    global.var.limit,
+    global.var.rmin,
+    global.var.rmax,
+    global.var.imin,
+    global.var.imax,
+    global.var.hueMin,
+    global.var.hueMax
+);
 
-// TODO context-menu: redraw / reset zoom / settings>dialog / css-checker>white,light,dark,black,off / mandelbrot-type>smooth(default),spiky,noodles (recalc) / css-smooth>off(default),low,medium,high / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200% / link to GitHub repo
+// TODO context-menu: save as PNG / image to clipboard / redraw / reset zoom / settings>dialog / css-checker>white,light,dark,black,off / mandelbrot-type>smooth(default),spiky,noodles (recalc) / css-smooth>off(default),low,medium,high / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200% / link to GitHub repo
 // TODO > settings-dialog: pos (recalc new areas) / scale (recalc) / hue start,end (draw preview)
 // TODO save mandelbrot values in typed f32array for faster rerendering when chaning hue ?
-// TODO mouse crosshair ~ draw box and click inside = zoom to that area ~ zoom out ?
-// TODO pan controls like in GIF-decoder
+// TODO mouse crosshair ~ draw box and click inside = zoom to that area ~ zoom out ? history of zoom steps [rectangle:posXY,minXY,maxXY] ~ undo/redo stack (also set browser history)
+// TODO pan & zoom (only visual zoom no calculation) controls like in GIF-decoder
 // TODO ! only draw new pixels when moving view around or resize larger window axis ~ 500ms like window-resize
 // TODO draw full screen ? base is still square (no redraw when resize larger window axis)
