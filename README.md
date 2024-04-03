@@ -9,3 +9,7 @@ Link → <https://maz01001.github.io/AlmondBreadErkunder/>
 >
 > Very much WIP!
 >
+
+## Controls
+
+Select an area by dragging with left mouse button and left click to zoom in.
