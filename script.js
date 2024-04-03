@@ -231,10 +231,11 @@ window.addEventListener("mouseup",ev=>{
     global.mouse.up=true;
     global.mouse.upX=ev.clientX;
     global.mouse.upY=ev.clientY;
-    html.cursor.classList.add("click");
+    if(ev.button===0&&(global.mouse.dragX-global.mouse.upX!==0&&global.mouse.dragY-global.mouse.upY!==0))html.cursor.classList.add("click");
+    else global.mouse.up=false;
 },{passive:true});
 
-// TODO create function zoomIn() ~ select area, confirm, then call zoomIn() to handle (abort draw ?), get coordinates, rescale canvas and initiate new draw
+// TODO create function zoomIn() ~ select area (min 1*1), confirm, then call zoomIn() to handle (abort draw ?), get coordinates, rescale canvas and initiate new draw
 html.cursor.addEventListener("click",async()=>{
     "use strict";
     global.render.break();
