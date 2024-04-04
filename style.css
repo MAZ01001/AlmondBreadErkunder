@@ -1,33 +1,32 @@
 body{
     margin: 0;
     overflow: hidden;
-    background-color: #000;
-}
-canvas#canvas,
-canvas#cursor{
-    width: 100vw;
-    height: 100vh;
-    image-rendering: pixelated;
-}
-canvas#canvas{
+    --bg-color: #FFF;
+    --bg-color: #000;
     --checker-a: #EEE;--checker-b: #FFF;
     --checker-a: #888;--checker-b: #AAA;
     --checker-a: #222;--checker-b: #333;
     --checker-a: #000;--checker-b: #111;
     /* --checker-a: transparent;--checker-b: transparent; */
     --checker-len: 1rem;
-    background: repeating-conic-gradient(var(--checker-a) 0 25%, var(--checker-b) 0 50%) 0 / var(--checker-len) var(--checker-len);
-    object-fit: contain;
+    background: repeating-conic-gradient(var(--checker-a) 0 25%, var(--checker-b) 0 50%) 0 / var(--checker-len) var(--checker-len), var(--bg-color);
 }
-canvas#cursor{pointer-events: none;}
-canvas#cursor.click{pointer-events: all;}
+canvas#canvas,
+canvas#cursor{
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
 canvas#cursor,
 progress#loading{
     position: absolute;
     translate: -50% -50%;
     left: 50%;
     top: 50%;
+    pointer-events: none;
 }
+canvas#cursor.click{pointer-events: all;}
 progress#loading{
     width: min(max(50vw,3rem),100vw);
     height: 2rem;
