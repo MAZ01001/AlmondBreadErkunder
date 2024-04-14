@@ -663,13 +663,13 @@ window.addEventListener("keydown",ev=>{
         break;
         case"PageUp":
             ev.preventDefault();
-            if(ev.ctrlKey){if(++global.state.order>=global.order.length)global.state.order=0;}
+            if(ev.shiftKey){if(++global.state.order>=global.order.length)global.state.order=0;}
             else if(++global.state.algo>=global.algo.length)global.state.algo=0;
             redraw();
         break;
         case"PageDown":
             ev.preventDefault();
-            if(ev.ctrlKey){if(--global.state.order<0)global.state.order=global.order.length-1;}
+            if(ev.shiftKey){if(--global.state.order<0)global.state.order=global.order.length-1;}
             else if(--global.state.algo<0)global.state.algo=global.algo.length-1;
             redraw();
         break;
