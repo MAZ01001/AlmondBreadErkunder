@@ -2,24 +2,6 @@
 "use strict";
 
 /**
- * ## Calculates the iteration count for the given position in the mandelbrot set
- * @param {number} real - position on the real axis
- * @param {number} imag - position on the complex axis
- * @param {number} maxI - max iteration count (integer >= 1)
- * @param {0|1|2} [variance] - [optional] `0` normal / `1` spiky / `2` tubes - defaults to normal
- * @returns {number} iteration count [1-{@linkcode maxI}] (assume clipping when the result is exactly {@linkcode maxI})
- */
-const mandelbrot=(real,imag,maxI,variance)=>{
-    "use strict";
-    let i=1;
-    switch(variance){
-        case 0:for(let cr=real,ci=imag;i<maxI&&cr*cr+ci*ci<8;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];break;
-        case 1:for(let cr=real,ci=imag;i<maxI&&cr*ci<3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];break;
-        case 2:for(let cr=real,ci=imag;i<maxI&&cr+ci>-3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];break;
-    }
-    return i;
-};
-/**
  * ## Maps {@linkcode n} from range [{@linkcode x}-{@linkcode y}] to range [{@linkcode x2}-{@linkcode y2}]
  * @param {number} n - given number
  * @param {number} x - start range of {@linkcode n}
@@ -31,7 +13,7 @@ const mandelbrot=(real,imag,maxI,variance)=>{
 const map=(n,x,y,x2,y2)=>{
     "use strict";
     const yx=y-x;
-    return((n-x)*(y2-x2)+yx*x2)/yx;
+    return((n-x)*(y2-x2)+yx*x2)*yx**-1;
 };
 /**
  * ## Translates hue to RGB
@@ -46,6 +28,29 @@ const hueToRGB=hue=>[1/3,0,-1/3].map(v=>{
     if(t<2/3)return(2/3-t)*0x5FA;
     return 0;
 });
+/**
+ * ## Formats a complex number
+ * @param {number} real - real part of complex number
+ * @param {number} imag - imaginary part of complex number
+ * @returns {string} the formatted complex number
+ */
+const formatComplex=(real,imag)=>`${real<0?real:`+${real}`}${imag<0?imag:`+${imag}`}\u2148`;
+/**
+ * ## Create an array with random indecies (unique and in range 0 to {@linkcode len}-1)
+ * @param {number} len length of array
+ * @returns {number[]} array with indecies as values in random order
+ */
+const randomOrder=len=>{
+    "use strict";
+    const arr=new Array(len);
+    for(let i=len-1;i>0;i--){
+        const j=Math.trunc(Math.random()*(i+1));
+        [arr[i],arr[j]]=[arr[j]??j,arr[i]??i];
+    }
+    return arr;
+};
+
+//#region HTML & global obj
 
 const html=Object.freeze({
     /**@type {HTMLCanvasElement} main canvas*///@ts-ignore element does exist in DOM
@@ -57,24 +62,71 @@ const html=Object.freeze({
     /**@type {CanvasRenderingContext2D} 2d context for {@linkcode html.canvas}*///@ts-ignore element does exist in DOM & gets checked for NULL later on
     cnx:document.getElementById("canvas").getContext("2d"),
     /**@type {CanvasRenderingContext2D} 2d context for {@linkcode html.cursor}*///@ts-ignore element does exist in DOM & gets checked for NULL later on
-    crx:document.getElementById("cursor").getContext("2d")
+    crx:document.getElementById("cursor").getContext("2d"),
+    // TODO
 })
 if(html.cnx==null||html.crx==null)throw"couldn't get canvas 2d context";
 
-html.cnx.imageSmoothingEnabled=false;
-html.crx.imageSmoothingEnabled=false;
-
 const global=Object.freeze({
+    /**@type {readonly((real:number,imag:number,limit:number)=>number)[]} ordered list of algorithms - assume result is [0-1] and clip at +-`Infinity` - also see {@linkcode global.defaults}*/
+    algo:Object.freeze([
+        (real,imag,limit)=>{//~ [0] Mandelbrot - smooth
+            "use strict";
+            if(limit<=1)return limit;
+            let i=1;
+            for(let cr=real,ci=imag;i<limit&&cr*cr+ci*ci<8;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            return i<limit?i/limit:Infinity;
+        },
+        (real,imag,limit)=>{//~ [1] Mandelbrot - spiky
+            "use strict";
+            if(limit<=1)return limit;
+            let i=1;
+            for(let cr=real,ci=imag;i<limit&&cr*ci<3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            return i<limit?i/limit:Infinity;
+        },
+        (real,imag,limit)=>{//~ [2] Mandelbrot - noodles
+            "use strict";
+            if(limit<=1)return limit;
+            let i=1;
+            for(let cr=real,ci=imag;i<limit&&cr+ci>-3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            return i<limit?i/limit:Infinity;
+        },
+        // TODO ? implement other algoorithms/plots
+        // return real**2+imag**2;
+        // return real**2-imag**2;
+        // return Math.random()*maxI;
+        // return Math.min(real+imag,maxI);
+        // return Math.min(Math.abs(real*imag),maxI);
+        // return Math.min(Math.exp(real*imag),maxI);
+        // return Math.min(Math.hypot(real,imag),maxI);
+        // return(Math.cos(real)+Math.cos(imag))*.5*maxI;
+        // return(Math.atan(real)+Math.atan(imag))*.5*maxI;
+        // return Math.atan2(imag,real)*maxI*(2*Math.PI)**-1;
+    ]),
+    // TODO ↓ see draw()
+    /**@type {readonly["top2bottom","random"]} - render order ({@linkcode draw})*/
+    order:Object.freeze(["top2bottom","random"]),
+    /**@type {readonly Readonly<{limit:number,rmin:number,rmax:number,imin:number,imax:number,color:[number,number,number]|null,cmin:number,cmax:number}>[]} ordered list of default states for each {@linkcode global.algo} (same indecies)*/
+    defaults:Object.freeze([
+        Object.freeze({limit:200,rmin:-2,rmax:.6,imin:-1.3,imax:1.3,color:null,cmin:-1.3,cmax:1.99}),
+        Object.freeze({limit:200,rmin:-2,rmax:.6,imin:-1.3,imax:1.3,color:null,cmin:-1.3,cmax:1.99}),
+        Object.freeze({limit:200,rmin:-2,rmax:.6,imin:-1.3,imax:1.3,color:null,cmin:-1.3,cmax:1.99}),
+        // TODO see todo above
+    ]),
     render:new class{
         #pause=false;
         #break=false;
         #running=false;
         /**if a calculation/draw is currently running (or is not fully aborted yet)*/
         get running(){return this.#running;}
+        /**if a calculation/draw is currently paused (not necessarily {@linkcode running})*/
+        get paused(){return this.#pause;}
         /**pause currently running calculation/draw*/
         pause(){this.#pause=true;}
         /**resumes currently paused calculation/draw*/
         resume(){this.#pause=false;}
+        /**toggle pause currently running calculation/draw (and returns current pause state)*/
+        toggle(){return this.#pause=!this.#pause;}
         /**aborts currently running calculation/draw*/
         break(){this.#break=true;}
         /**resets variables for next calculation/draw*/
@@ -99,132 +151,436 @@ const global=Object.freeze({
         move:false,
         /**@type {number} timeout ID for {@linkcode global.mouse.move} delay*/
         moveTimeout:NaN,
-        /**@type {NaN|0|1|2} `NaN` none / 0 left / 1 middle / 2 right*/
-        button:NaN,
-        /**@type {boolean} `true` when a mouse button is held down (see {@linkcode global.mouse.drag} on which element it started and {@linkcode global.mouse.dragX} and {@linkcode global.mouse.dragY} for the position)*/
+        /**@type {boolean} `true` when a mouse button is held down (see {@linkcode global.mouse.dragX} and {@linkcode global.mouse.dragY} for the position)*/
         hold:false,
-        /**@type {EventTarget|null} HTML element on which the dragging started and `null` when {@linkcode global.mouse.hold} is `false`*/
-        drag:null,
         /**@type {number} mouse drag start X position (updated on `mousedown`)*/
         dragX:0,
         /**@type {number} mouse drag start Y position (updated on `mousedown`)*/
         dragY:0,
-        /**@type {boolean} set to `true` on `mouseup` for showing the (clickable) zoom-in area ~ then `false`*/
-        up:false,
         /**@type {number} mouse drag end X position (updated on `mouseup`)*/
         upX:0,
         /**@type {number} mouse drag end Y position (updated on `mouseup`)*/
-        upY:0
+        upY:0,
+        /**@type {boolean} set to `true` on `mouseup` when a non-zero area was drawn/selected for zoom-in ~ set to `false` when used*/
+        area:false
     }),
-    var:Object.seal({
+    state:Object.seal({
         /**@type {number} timeout ID for resize delay*/
         resizeTimeout:NaN,
-        /**@type {number} previous window width (physical pixels)*/
-        resizeWidth:Math.trunc(window.innerWidth*window.devicePixelRatio),
-        /**@type {number} previous window height (physical pixels)*/
-        resizeHeight:Math.trunc(window.innerHeight*window.devicePixelRatio),
+        /**@type {number} current window width (physical pixels)*/
+        winW:Math.trunc(window.innerWidth*window.devicePixelRatio),
+        /**@type {number} current window height (physical pixels)*/
+        winH:Math.trunc(window.innerHeight*window.devicePixelRatio),
+        /**@type {number} timeout ID for move delay*/
+        moveTimeout:NaN,
         /**@type {number} scale of {@linkcode html.canvas} - does not change resolution but influences coordinates when choosing area*/
         zoom:1,
         /**@type {number} horizontal offset of {@linkcode html.canvas} from left edge*/
         panX:0,
         /**@type {number} vertical offset of {@linkcode html.canvas} from top edge*/
         panY:0,
-        /**@type {number} current value for {@linkcode draw} (parameter[0] `limit`)*/
+        /**@type {number} - delay rendering (in {@linkcode draw}) every X pixels by one animation frame (v-sync)*/
+        pixelDelay:window.screen.width*window.devicePixelRatio,
+        /**@type {number} - index into {@linkcode global.algo} (and {@linkcode global.defaults})*/
+        algo:0,
+        /**@type {number} - index into {@linkcode global.order}*/
+        order:0,
+        /**@type {number} - limit for the current {@linkcode global.algo}*/
         limit:200,
-        /**@type {number} current value for {@linkcode draw} (parameter[1] `rmin`)*/
+        /**@type {number} - start value of real part for current {@linkcode global.algo} plot*/
         rmin:-2,
-        /**@type {number} current value for {@linkcode draw} (parameter[2] `rmax`)*/
+        /**@type {number} - end value of real part for current {@linkcode global.algo} plot*/
         rmax:.6,
-        /**@type {number} current value for {@linkcode draw} (parameter[3] `imin`)*/
+        /**@type {number} - start value of imaginary part for current {@linkcode global.algo} plot*/
         imin:-1.3,
-        /**@type {number} current value for {@linkcode draw} (parameter[4] `imax`)*/
+        /**@type {number} - end value of imaginary part for current {@linkcode global.algo} plot*/
         imax:1.3,
-        /**@type {[number,number,number]|null} current value for {@linkcode draw} (parameter[5] `color` _optional_)*/
+        /**@type {[number,number,number]|null} - color change (from {@linkcode cmin} to {@linkcode cmax}) via `null` hue or `[R,G,B]` (integer [0-255]) saturation*/
         color:null,
-        /**@type {number} current value for {@linkcode draw} (parameter[6] `cmin` _optional_)*/
+        /**@type {number} - color range minimum (float)*/
         cmin:-1.3,
-        /**@type {number} current value for {@linkcode draw} (parameter[7] `cmax` _optional_)*/
-        cmax:1.99,
-        /**@type {0|1|2} current value for {@linkcode draw} (parameter[8] `variance` _optional_)*/
-        variance:0
+        /**@type {number} - color range maximum (float)*/
+        cmax:1.99
     })
 });
 
+//#region canvas/window size
+
+/**
+ * ## Set {@linkcode html.canvas} size, set global composite operation to `copy`, and disable image smoothing
+ * only clears canvas when size is different
+ * @param {number} width - new width
+ * @param {number} [height] - new height - default same as {@linkcode width}
+ */
+const setCanvasSize=(width,height)=>{
+    height??=width;
+    if(width!==html.canvas.width)html.canvas.width=width;
+    if(height!==html.canvas.height)html.canvas.height=height;
+    html.cnx.globalCompositeOperation="copy";
+    html.cnx.imageSmoothingEnabled=false;
+};
+/**
+ * ## Scales area to fit window size ({@linkcode global.state.winW}*{@linkcode global.state.winH}) and returns new width/height
+ * @param {number} width - area width
+ * @param {number} height - area height
+ * @param {boolean} [inv] - if `true` scales window size to given area (keeping aspect ratio) - default `false`
+ * @returns {[number,number]} new `[width,height]` of area
+ */
+const scaleToWindow=(width,height,inv)=>{
+    "use strict";
+    if(inv??false){
+        const scaledWidth=global.state.winW*(height/global.state.winH);
+        if(scaledWidth<width)return[width,global.state.winH*(width/global.state.winW)];
+        return[scaledWidth,height];
+    }
+    const scaledWidth=width*(global.state.winH/height);
+    if(scaledWidth>global.state.winW!==(inv??false))return[global.state.winW,height*(global.state.winW/width)];
+    return[scaledWidth,global.state.winH];
+};
+/**## Scales {@linkcode html.canvas} from current view area to fit current window size*/
+const setCanvasSizeAuto=()=>setCanvasSize(...scaleToWindow(global.state.rmax-global.state.rmin,global.state.imax-global.state.imin));
+
+//#region draw
+
+/**
+ * ## Get color for a value from an {@linkcode global.algo} calculation
+ * @param {number} value - value [0-1] (can be out of bounds) - clip at +-`Infinity`
+ * @returns {[number,number,number,number]|null} `[R,G,B,A]` in range [0-255] or `null` when clipped
+ */
+const getColor=value=>{
+    "use strict";
+    if(!Number.isFinite(value))return null;
+    const saturation=value*(global.state.cmax-global.state.cmin)+global.state.cmin;
+    if(global.state.color==null)return[...hueToRGB(saturation),0xFF];
+    let tmp=0;
+    return[
+        (tmp=(global.state.color[0]*saturation)%0x100)<0?0x100+tmp:tmp,
+        (tmp=(global.state.color[1]*saturation)%0x100)<0?0x100+tmp:tmp,
+        (tmp=(global.state.color[2]*saturation)%0x100)<0?0x100+tmp:tmp,
+        0xFF
+    ];
+};
+
 /**
  * ## Calculates the {@linkcode mandelbrot} set and draws it to {@linkcode html.cnx} ({@linkcode html.canvas}), updates {@linkcode html.loading}, and responds to {@linkcode global.render} signals
- * {@linkcode html.canvas.width} and {@linkcode html.canvas.height} should be modified to the same aspect ratio as {@linkcode imin} ↔ {@linkcode imax} and {@linkcode imin} ↔ {@linkcode imax} or the resulting image will be distorted\
- * _waits for a script-cycle each pixel, a full-cycle each row (after drawing), and can be stopped with {@linkcode global.render}_
- * @param {number} limit - limit for the mandelbrot algorithm
- * @param {number} rmin - start value of real part in mandelbrot set
- * @param {number} rmax - end value of real part in mandelbrot set
- * @param {number} imin - start value of imaginary part in mandelbrot set
- * @param {number} imax - end value of imaginary part in mandelbrot set
- * @param {[number,number,number]|null} [color] - [optional] color change (from {@linkcode cmin} to {@linkcode cmax}) via `null` hue or `[R,G,B]` (integer [0-255]) saturation - default via hue
- * @param {number} [cmin] - [optional] color range minimum (float) - default `0`
- * @param {number} [cmax] - [optional] color range maximum (float) - default `1`
- * @param {0|1|2} [variance] - [optional] mandelbrot appearance: `0` normal / `1` spiky / `2` tubes - defaults to normal
+ * {@linkcode html.canvas.width} and {@linkcode html.canvas.height} should be modified to the same aspect ratio as {@linkcode global.state.rmin} ↔ {@linkcode global.state.rmax} and {@linkcode global.state.imin} ↕ {@linkcode global.state.imax} or the resulting image will be distorted\
+ * _waits for a script-cycle each pixel, a full-cycle each row (after drawing), and can be stopped with {@linkcode global.render}_\
+ * (inverts Y so it increases from bottom to top on screen)
  */
-const draw=async(limit,rmin,rmax,imin,imax,color,cmin,cmax,variance)=>{
+const draw=async()=>{
     "use strict";
     global.render.start();
     html.loading.removeAttribute("value");
     html.loading.classList.remove("hide");
     await new Promise(E=>setTimeout(E,10));
-    const pixelLine=new ImageData(html.canvas.width,1),
-        partPixels=1/(html.canvas.width*html.canvas.height);
-    cmin??=0;
-    cmax??=1;
-    // TODO switch row/col when height>width
-    outer:for(let x=0,y=0;y<html.canvas.height;y++){
-        for(x=0;x<html.canvas.width;x++){
-            const value=mandelbrot(map(x,0,html.canvas.width-1,rmin,rmax),map(y,0,html.canvas.height-1,imin,imax),limit,variance);
-            if(value<limit)
-                if(color==null)pixelLine.data.set([...hueToRGB(map(value,1,limit,cmin,cmax)),0xFF],x*4);
-                else pixelLine.data.set((saturation=>[...color.map(v=>v*saturation),0xFF])(map(value,1,limit,cmin,cmax)),x*4);
-            else pixelLine.data[x*4+3]=0;
-            html.loading.value=(y*html.canvas.width+x)*partPixels;
-            await Promise.resolve();
-            if(await global.render.check())break outer;
-        }
-        html.cnx.putImageData(pixelLine,0,y);
-        await new Promise(E=>setTimeout(E,0));
-        if(await global.render.check())break;
+    const
+        fullPixels=html.canvas.width*html.canvas.height,
+        partPixels=1/fullPixels;
+    // TODO render order ~ top2bottom (default), left2right, bottom2top, right2left, outwards-vertical, outwards-horizontal, outwards-spiral (square), inwards-..., random (see below)
+    switch(global.order[global.state.order]){
+        case "random":
+            const
+                img=new ImageData(html.canvas.width,html.canvas.height),
+                po=randomOrder(fullPixels);
+            for(let p=0;p<fullPixels;p++){
+                const
+                    [x,y]=[po[p]%html.canvas.width,Math.trunc(po[p]/html.canvas.width)],
+                    color=getColor(global.algo[global.state.algo](
+                        map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
+                        map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
+                        global.state.limit
+                    ));
+                if(color===null)img.data[(y*html.canvas.width+x)*4+3]=0;
+                else img.data.set(color,(y*html.canvas.width+x)*4);
+                html.loading.value=p*partPixels;
+                if(p%global.state.pixelDelay===0){
+                    html.cnx.putImageData(img,0,0);
+                    await new Promise(E=>window.requestAnimationFrame(E));
+                }
+                if(await global.render.check())break;
+            }
+            html.cnx.putImageData(img,0,0);
+        break;
+        case "top2bottom":
+        default:
+            const pixelLine=new ImageData(html.canvas.width,1);
+            outer:for(let x=0,y=0;y<html.canvas.height;y++){
+                for(x=0;x<html.canvas.width;x++){
+                    const color=getColor(global.algo[global.state.algo](
+                        map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
+                        map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
+                        global.state.limit
+                    ));
+                    if(color===null)pixelLine.data[x*4+3]=0;
+                    else pixelLine.data.set(color,x*4);
+                    const pixels=y*html.canvas.width+x;
+                    html.loading.value=pixels*partPixels;
+                    if(pixels%global.state.pixelDelay===0){
+                        html.cnx.putImageData(pixelLine,0,y);
+                        await new Promise(E=>window.requestAnimationFrame(E));
+                    }
+                    if(await global.render.check())break outer;
+                }
+                html.cnx.putImageData(pixelLine,0,y);
+            }
+        break;
     }
     html.loading.classList.add("hide");
     global.render.end();
 };
 /**
- * ## Calls {@linkcode draw} with the values stored in {@linkcode global.var} with optional overrides
- * _does not change values in {@linkcode global.var}_
- * @param {number} [limit] - [optional] limit for the mandelbrot algorithm - defaults to {@linkcode global.var.limit}
- * @param {[number,number,number]|null} [color] - [optional] color change (from {@linkcode cmin} to {@linkcode cmax}) via `null` hue or `[R,G,B]` (integer [0-255]) saturation - defaults to {@linkcode global.var.color}
- * @param {number} [cmin] - [optional] color range minimum (float) - defaults to {@linkcode global.var.cmin}
- * @param {number} [cmax] - [optional] color range maximum (float) - defaults to {@linkcode global.var.cmax}
- * @param {0|1|2} [variance] - [optional] mandelbrot appearance: `0` normal / `1` spiky / `2` tubes - defaults to {@linkcode global.var.variance}
+ * ## Calls {@linkcode draw} with the values stored in {@linkcode global.state} with optional overrides
+ * _does not change values in {@linkcode global.state}_
+ * @param {number} [limit] - [optional] limit for the mandelbrot algorithm
+ * @param {[([number,number,number]|null)?,number?,number?]} [colors] - [optional] `[color-change, color-start, color-end]` - color-change (from color-start to color-end) via hue = `null` or saturation = `[R,G,B]` (integer [0-255])
+ * @param {number} [algo] - [optional] index into {@linkcode global.algo}
+ * @param {number} [order] - [optional] index into {@linkcode global.order}
+ * @param {boolean} [restore] - [optional] if `true` restores original values after {@linkcode draw} has finished - default `true`
  */
-const redraw=async(limit,color,cmin,cmax,variance)=>{
+const redraw=async(limit,colors,algo,order,restore)=>{
     "use strict";
     global.render.break();
     global.render.resume();
     for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
     global.render.reset();
-    await draw(
-        limit??global.var.limit,
-        global.var.rmin,
-        global.var.rmax,
-        global.var.imin,
-        global.var.imax,
-        color??global.var.color,
-        cmin??global.var.cmin,
-        cmax??global.var.cmax,
-        variance??global.var.variance,
+    clearTimeout(global.state.moveTimeout);
+    /**@type {[number,([number,number,number]|null),number,number,number,number]}*/
+    const store=[global.state.limit,global.state.color,global.state.cmin,global.state.cmax,global.state.algo,global.state.order];
+    let change=false;
+    if(limit!=null&&(change=global.state.limit!==limit))global.state.limit=limit;
+    if(colors!=null&&(change=global.state.color!==colors[0]||global.state.cmin!==colors[1]||global.state.cmax!==colors[2]))[
+        global.state.color=colors[0]===null?null:global.state.color,
+        global.state.cmin=global.state.cmin,
+        global.state.cmax=global.state.cmax
+    ]=colors;
+    if(algo!=null&&(change=global.state.algo!==algo))global.state.algo=algo;
+    if(order!=null&&(change=global.state.order!==order))global.state.order=order;
+    await draw();
+    if((restore??true)&&change)[global.state.limit,global.state.color,global.state.cmin,global.state.cmax,global.state.algo,global.state.order]=store;
+};
+/**## Scaes the {@linkcode html.canvas} to window size and {@linkcode redraw}*/
+const full=async()=>{
+    if(html.canvas.width<global.state.winW){
+        const dif=(rw=>(rw*global.state.winW*(html.canvas.width**-1)-rw)*(global.state.rmin<global.state.rmax?.5:-.5))(Math.abs(global.state.rmin-global.state.rmax));
+        global.state.rmin-=dif;
+        global.state.rmax+=dif;
+        setCanvasSize(global.state.winW,global.state.winH);
+    }else if(html.canvas.height<global.state.winH){
+        const dif=(ih=>(ih*global.state.winH*(html.canvas.height**-1)-ih)*(global.state.imin<global.state.imax?.5:-.5))(Math.abs(global.state.imin-global.state.imax));
+        global.state.imin-=dif;
+        global.state.imax+=dif;
+        setCanvasSize(global.state.winW,global.state.winH);
+    }else return;
+    await redraw();
+};
+
+//#region zoom & move
+
+/**
+ * ## Zoom in on a selected area in the mandelbrot set or on screen (set {@linkcode pixels} to `true`)
+ * _does nothing if the size of the area is 0_
+ * @param {number} left - start of the area on the real axis
+ * @param {number} top - start of the area on the imaginary axis
+ * @param {number} right - end of the area on the real axis
+ * @param {number} bottom - end of the area on the imaginary axis
+ * @param {boolean} [pixels] - if `true` treads values as screen-space pixel coordinates depending on {@linkcode html.canvas}, {@linkcode global.state.zoom}, and {@linkcode global.state.panX}/{@linkcode global.state.panY}
+ */
+const zoomArea=async(left,top,right,bottom,pixels)=>{
+    "use strict";
+    if(left-right===0||top-bottom===0)return;
+    global.render.break();
+    global.render.resume();
+    for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
+    global.render.reset();
+    if(pixels??false){
+        const
+            [cl,cr]=((wwp,cw)=>[wwp-cw,wwp+cw])(global.state.winW*.5+global.state.panX,html.canvas.width*global.state.zoom*.5),
+            [ct,cb]=((whp,ch)=>[whp-ch,whp+ch])(global.state.winH*.5+global.state.panY,html.canvas.height*global.state.zoom*.5),
+            rmin=map(left,cl,cr,global.state.rmin,global.state.rmax),
+            rmax=map(right,cl,cr,global.state.rmin,global.state.rmax),
+            imin=map(global.state.winH-bottom,ct,cb,global.state.imin,global.state.imax),
+            imax=map(global.state.winH-top,ct,cb,global.state.imin,global.state.imax);
+        global.state.rmin=rmin;
+        global.state.rmax=rmax;
+        global.state.imin=imin;
+        global.state.imax=imax;
+    }else{
+        global.state.rmin=left;
+        global.state.rmax=right;
+        global.state.imin=top;
+        global.state.imax=bottom;
+    }
+    setCanvasSizeAuto();
+    await redraw();
+};
+/**
+ * ## Zooms in/out uniformly by {@linkcode percent} and {@linkcode redraw}
+ * @param {number} percent - percent of current view ({@linkcode global.state.rmin} ↔ {@linkcode global.state.rmax} and {@linkcode global.state.imin} ↕ {@linkcode global.state.imax})
+ * - zoom in: 1 < # < `Infinity`
+ * - zoom out: 0 < # < 1
+ * - 1 does nothing
+ * - negative numbers invert the view horizontaly and verticaly
+ * @throws {RangeError} if {@linkcode percent} is 0
+ */
+const zoom=async percent=>{
+    "use strict";
+    if(percent===1)return;
+    if(percent===0)throw new RangeError("[zoom] percent must not be 0");
+    const
+        scaler=(1-percent**-1)*.5,
+        dw=Math.abs(global.state.rmin-global.state.rmax)*scaler,
+        dh=Math.abs(global.state.imin-global.state.imax)*scaler;
+    global.state.rmin+=dw;
+    global.state.rmax-=dw;
+    global.state.imin+=dh;
+    global.state.imax-=dh;
+    await redraw();
+};
+/**
+ * ## Move in a direction with current view
+ * @param {number} amount - amout of pixels to move to the (-) right or (+) left
+ * @param {boolean} [vertical] - if `true` use {@linkcode amount} to go (-) down or (+) up - default `false`
+ */
+const move=async(amount,vertical)=>{
+    global.render.break();
+    global.render.resume();
+    for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
+    global.render.reset();
+    global.render.start();
+    // TODO ? also follow global.order[global.state.render]
+    // TODO > when random redraw directly
+    if(vertical??false){
+        html.cnx.drawImage(
+            html.canvas,
+            0,amount<0?-amount:0,html.canvas.width,html.canvas.height-Math.abs(amount),
+            0,amount<0?0:amount,html.canvas.width,html.canvas.height-Math.abs(amount)
+        );
+        const amountImag=Math.abs(global.state.imin-global.state.imax)*(-amount/html.canvas.height);
+        global.state.imin-=amountImag;
+        global.state.imax-=amountImag;
+        //~ draw missing pixels
+        await new Promise(E=>setTimeout(E,10));
+        const pixelLine=new ImageData(html.canvas.width,1);
+        outer:for(let x=0,y=amount<0?html.canvas.height+amount:0;amount<0?y<html.canvas.height:y<amount;y++){
+            for(x=0;x<html.canvas.width;x++){
+                const color=getColor(global.algo[global.state.algo](
+                    map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
+                    map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
+                    global.state.limit
+                ));
+                if(color==null)pixelLine.data[x*4+3]=0;
+                else pixelLine.data.set(color,x*4);
+                if((y*html.canvas.width+x)%global.state.pixelDelay===0)await new Promise(E=>window.requestAnimationFrame(E));
+                if(await global.render.check())break outer;
+            }
+            html.cnx.putImageData(pixelLine,0,y);
+        }
+    }else{
+        html.cnx.drawImage(
+            html.canvas,
+            amount<0?-amount:0,0,html.canvas.width-Math.abs(amount),html.canvas.height,
+            amount<0?0:amount,0,html.canvas.width-Math.abs(amount),html.canvas.height
+        );
+        const amountReal=Math.abs(global.state.rmin-global.state.rmax)*(-amount/html.canvas.width);
+        global.state.rmin+=amountReal;
+        global.state.rmax+=amountReal;
+        //~ draw missing pixels
+        const pixelLine=new ImageData(1,html.canvas.height);
+        outer:for(let x=amount<0?html.canvas.width+amount:0,y=0;amount<0?x<html.canvas.width:x<amount;x++){
+            for(y=0;y<html.canvas.height;y++){
+                const color=getColor(global.algo[global.state.algo](
+                    map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
+                    map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
+                    global.state.limit
+                ));
+                if(color==null)pixelLine.data[y*4+3]=0;
+                else pixelLine.data.set(color,y*4);
+                if((x*html.canvas.height+y)%global.state.pixelDelay===0)await new Promise(E=>window.requestAnimationFrame(E));
+                if(await global.render.check())break outer;
+            }
+            html.cnx.putImageData(pixelLine,x,0);
+        }
+    }
+    global.render.end();
+    clearTimeout(global.state.moveTimeout);
+    global.state.moveTimeout=setTimeout(()=>redraw(),1000);
+}
+
+//#region read/write view
+
+/**## Get the current Mandelbrot view as string*/
+const getView=()=>`${global.state.algo}:${global.state.limit},${JSON.stringify(global.state.color)},${global.state.cmin},${global.state.cmax}:${global.state.rmin},${global.state.rmax},${global.state.imin},${global.state.imax}`;
+/**## Copy {@linkcode getView} to clipboard (_document must be focused and in secure context ie. HTTPS / localhost_)*/
+const copyView=()=>navigator.clipboard.writeText(getView()).catch(reason=>console.warn("[getView] Couldn't write text to clipboard; reason: %O",reason));
+/**## Download {@linkcode getView} to a TXT file*/
+const downloadView=()=>Object.assign(document.createElement("a"),{href:`data:,${encodeURIComponent(getView())}`,download:"Mandelbrot.txt"}).click();
+/**## Regex for {@linkcode setView} (matches {@linkcode getView} with optional whitespace)*/
+const parseViewRegex=(jsNum=>new RegExp(`^(${jsNum})? ?: ?(${jsNum})? ?, ?(null|\\[ ?${jsNum} ?, ?${jsNum} ?, ?${jsNum} ?\\])? ?, ?(${jsNum})? ?, ?(${jsNum})? ?: ?(${jsNum})? ?, ?(${jsNum})? ?, ?(${jsNum})? ?, ?(${jsNum})?$`))("[+-]?(?:0[bB][01](?:_?[01]+)*|0[oO][0-7](?:_?[0-7]+)*|0[xX][0-9a-fA-F](?:_?[0-9a-fA-F]+)*|(?:[0-9](?:_?[0-9]+)*(?:\\.(?:[0-9](?:_?[0-9]+)*)?)?|\\.[0-9](?:_?[0-9]+)*)(?:[eE][+-]?[0-9](?:_?[0-9]+)*)?)");
+/**
+ * ## Parse a string from {@linkcode getview} via {@linkcode parseViewRegex}, set {@linkcode html.canvas} size, and {@linkcode redraw} ({@linkcode zoomArea})
+ * @param {string} str - a string in format: `algo : limit , color , cmin , cmax , algo : rmin , rmax , imin , imax` - all parameters and whitespace are optional
+ */
+const setView=async str=>{
+    "use strict";
+    const m=str.trim().match(parseViewRegex);
+    if(m==null)return;
+    global.state.algo=m[1]==null?0:Math.min(Math.max(Math.trunc(Number(m[1])),0),Number.MAX_SAFE_INTEGER);
+    global.state.limit=m[2]==null?global.defaults[global.state.algo].limit:Number(m[2]);
+    global.state.color=m[3]==null?global.defaults[global.state.algo].color:m[3]==="null"?null:JSON.parse(m[3]).map(v=>Math.trunc(v));
+    global.state.cmin=m[4]==null?global.defaults[global.state.algo].cmin:Number(m[4]);
+    global.state.cmax=m[5]==null?global.defaults[global.state.algo].cmax:Number(m[5]);
+    await zoomArea(
+        m[6]==null?global.defaults[global.state.algo].rmin:Number(m[6]),
+        m[8]==null?global.defaults[global.state.algo].imin:Number(m[8]),
+        m[7]==null?global.defaults[global.state.algo].rmax:Number(m[7]),
+        m[9]==null?global.defaults[global.state.algo].imax:Number(m[9])
     );
 };
 
+/**
+ * ## Copy current {@linkcode html.canvas} content as PNG to clipboard (_document must be focused and in secure context ie. HTTPS / localhost_)
+ * @param {number} [scaledWidth] - [optional] scale {@linkcode html.canvas} to given width before copying image and reset afterwards otherwise use current resolution
+ */
+const copyImage=async scaledWidth=>{
+    if(scaledWidth==null)return html.canvas.toBlob(img=>img==null||navigator.clipboard.write([new ClipboardItem({"image/png":img})]),"image/png");
+    const
+        cw=html.canvas.width,
+        ch=html.canvas.height;
+    setCanvasSize(scaledWidth,scaledWidth*ch*cw**-1);
+    await redraw();
+    const img=await new Promise(E=>html.canvas.toBlob(E,"image/png"));
+    if(img!=null)await navigator.clipboard.write([new ClipboardItem({"image/png":img})]);
+    setCanvasSize(cw,ch);
+    await redraw();
+}
+/**
+ * ## Download current {@linkcode html.canvas} content to a PNG file
+ * @param {number} [scaledWidth] - [optional] scale {@linkcode html.canvas} to given width before downloading image and reset afterwards otherwise use current resolution
+ */
+const downloadImage=async scaledWidth=>{
+    if(scaledWidth==null)return Object.assign(document.createElement("a"),{href:html.canvas.toDataURL("image/png"),download:"Mandelbrot.png"}).click();
+    const
+        cw=html.canvas.width,
+        ch=html.canvas.height;
+    setCanvasSize(scaledWidth,scaledWidth*ch*cw**-1);
+    await redraw();
+    Object.assign(document.createElement("a"),{href:html.canvas.toDataURL("image/png"),download:"Mandelbrot.png"}).click();
+    //? wait for download to finish
+    await new Promise(E=>setTimeout(E,1000));
+    setCanvasSize(cw,ch);
+    await redraw();
+}
+
+//#region cursor
+
+//~ cursor canvas
 window.requestAnimationFrame(function cursor(){
     "use strict";
-    html.cursor.width=Math.trunc(window.innerWidth*window.devicePixelRatio);
-    html.cursor.height=Math.trunc(window.innerHeight*window.devicePixelRatio);
+    //~ no coordinates if the mouse has not moved yet
+    if(Number.isNaN(global.mouse.moveTimeout)){window.requestAnimationFrame(cursor);return;}
+    html.cursor.width=global.state.winW;
+    html.cursor.height=global.state.winH;
+    html.crx.imageSmoothingEnabled=false;
     //~ crosshair
     if(global.mouse.move||global.mouse.hold){
         html.crx.lineWidth=1;
@@ -237,19 +593,30 @@ window.requestAnimationFrame(function cursor(){
         html.crx.stroke();
     }
     //~ selection box
-    if(global.mouse.hold||global.mouse.up){
-        html.crx.fillStyle="#F904";
-        html.crx.fillRect(
-            Math.min(global.mouse.dragX,global.mouse.up?global.mouse.upX:global.mouse.x),
-            Math.min(global.mouse.dragY,global.mouse.up?global.mouse.upY:global.mouse.y),
-            Math.abs(global.mouse.dragX-(global.mouse.up?global.mouse.upX:global.mouse.x)),
-            Math.abs(global.mouse.dragY-(global.mouse.up?global.mouse.upY:global.mouse.y))
-        );
+    let sx=Math.min(global.mouse.dragX,global.mouse.area?global.mouse.upX:global.mouse.x),
+        sy=Math.min(global.mouse.dragY,global.mouse.area?global.mouse.upY:global.mouse.y),
+        sw=Math.abs(global.mouse.dragX-(global.mouse.area?global.mouse.upX:global.mouse.x)),
+        sh=Math.abs(global.mouse.dragY-(global.mouse.area?global.mouse.upY:global.mouse.y));
+    if(global.mouse.hold||global.mouse.area){
+        html.crx.fillStyle="#F90A";
+        html.crx.fillRect(sx,sy,sw,sh);
+        html.crx.lineWidth=1;
+        html.crx.strokeStyle="#444";
+        const[aw,ah]=scaleToWindow(sw,sh,true);
+        html.crx.strokeRect(sx+(sw-aw)*.5,sy+(sh-ah)*.5,aw,ah);
     }
     //~ coordinates
-    // TODO mouse XY | (hold/up) start XY | (hold/up) WH
+    // TODO (move) XY,complex | (hold/up) XY,WH |~ formatComplex()
+
     window.requestAnimationFrame(cursor);
 });
+
+//#region context/settings menu
+
+// TODO copy self complex number ~ formatComplex()
+// .addEventListener("click",ev=>navigator.clipboard.writeText(ev.target.value).catch(reason=>console.warn("[] Couldn't write text to clipboard; reason: %O",reason))},{passive:true});
+
+//#region event listeners
 
 window.addEventListener("mousemove",ev=>{
     "use strict";
@@ -257,106 +624,180 @@ window.addEventListener("mousemove",ev=>{
     global.mouse.y=ev.clientY*window.devicePixelRatio;
     global.mouse.move=true;
     clearTimeout(global.mouse.moveTimeout);
-    global.mouse.moveTimeout=setTimeout(()=>global.mouse.move=false,1000);
+    global.mouse.moveTimeout=setTimeout(()=>global.mouse.move=false,3000);
 },{passive:true});
 window.addEventListener("mousedown",ev=>{
     "use strict";
-    if(global.mouse.up)return;
-    global.mouse.button=ev.button;
+    //~ 0 left ; 1 middle ; 2 right
+    if(ev.button===1)window.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter"}));
+    if(ev.button!==0)return;
+    // TODO ignore (target) settings or context menu
+    global.mouse.area=false;
     global.mouse.hold=true;
-    global.mouse.drag=ev.target;
     global.mouse.dragX=ev.clientX*window.devicePixelRatio;
     global.mouse.dragY=ev.clientY*window.devicePixelRatio;
 },{passive:true});
 window.addEventListener("mouseup",ev=>{
     "use strict";
-    if(global.mouse.up)return;
-    global.mouse.button=NaN;
+    if(!global.mouse.hold)return;
     global.mouse.hold=false;
-    global.mouse.drag=null;
     global.mouse.upX=ev.clientX*window.devicePixelRatio;
     global.mouse.upY=ev.clientY*window.devicePixelRatio;
-    html.cursor.classList.toggle("click",global.mouse.up=ev.button===0&&(global.mouse.dragX-global.mouse.upX!==0&&global.mouse.dragY-global.mouse.upY!==0));
+    global.mouse.area=ev.button===0&&(global.mouse.dragX-global.mouse.upX!==0&&global.mouse.dragY-global.mouse.upY!==0);
 },{passive:true});
 
-// TODO create function zoomIn() ~ select area (min 1*1), confirm, then call zoomIn() to handle (abort draw ?), get coordinates, rescale canvas and initiate new draw
-html.cursor.addEventListener("click",async()=>{
+window.addEventListener("keydown",ev=>{
     "use strict";
-    global.render.break();
-    global.render.resume();
-    for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
-    global.render.reset();
-    //~ zoom in to selected area (and update canvas size/aspect-ratio accordingly)
-    const
-        [cw,ch]=(z=>[html.canvas.width*z,html.canvas.height*z])(global.var.zoom*.5),
-        [ww,wh]=(dpr=>[window.innerWidth*dpr,window.innerHeight*dpr])(window.devicePixelRatio*.5),
-        [cl,cr]=(wwp=>[wwp-cw,wwp+cw])(ww+global.var.panX),
-        [ct,cb]=(whp=>[whp-ch,whp+ch])(wh+global.var.panY),
-        [ml,mr]=global.mouse.dragX<global.mouse.upX?[global.mouse.dragX,global.mouse.upX]:[global.mouse.upX,global.mouse.dragX],
-        [mt,mb]=global.mouse.dragY<global.mouse.upY?[global.mouse.dragY,global.mouse.upY]:[global.mouse.upY,global.mouse.dragY],
-        rmin=map(ml,cl,cr,global.var.rmin,global.var.rmax),
-        rmax=map(mr,cl,cr,global.var.rmin,global.var.rmax),
-        imin=map(mt,ct,cb,global.var.imin,global.var.imax),
-        imax=map(mb,ct,cb,global.var.imin,global.var.imax),
-        width=Math.trunc(window.innerWidth*window.devicePixelRatio),
-        height=Math.trunc(window.innerHeight*window.devicePixelRatio);
-    [html.canvas.width,html.canvas.height]=(sw=>sw>width?[width,(mb-mt)*(width/(mr-ml))]:[sw,height])((mr-ml)*(height/(mb-mt)));
-    global.var.rmin=rmin;
-    global.var.rmax=rmax;
-    global.var.imin=imin;
-    global.var.imax=imax;
-    redraw();
-    global.mouse.up=false;
-    html.cursor.classList.remove("click");
-},{passive:true});
+    console.log(ev.key);
+    // TODO key "ContextMenu" also show/hide the context menu (and shift focus)
+    // TODO don't prevent default in settings or context menu (all keys)
+    switch(ev.key){
+        case"Enter":
+            if(global.mouse.area){
+                global.mouse.area=false;
+                const
+                    [ml,mr]=global.mouse.dragX<global.mouse.upX?[global.mouse.dragX,global.mouse.upX]:[global.mouse.upX,global.mouse.dragX],
+                    [mt,mb]=global.mouse.dragY<global.mouse.upY?[global.mouse.dragY,global.mouse.upY]:[global.mouse.upY,global.mouse.dragY];
+                zoomArea(ml,mt,mr,mb,true);
+            }else redraw();
+        break;
+        case"PageUp":
+            ev.preventDefault();
+            if(ev.ctrlKey){if(++global.state.order>=global.order.length)global.state.order=0;}
+            else if(++global.state.algo>=global.algo.length)global.state.algo=0;
+            redraw();
+        break;
+        case"PageDown":
+            ev.preventDefault();
+            if(ev.ctrlKey){if(--global.state.order<0)global.state.order=global.order.length-1;}
+            else if(--global.state.algo<0)global.state.algo=global.algo.length-1;
+            redraw();
+        break;
+        case"Pause":
+            ev.preventDefault();
+            global.render.toggle();
+            // TODO toggle (HTML) pause button
+        break;
+        case"End":
+        case"Cancel":
+            ev.preventDefault();
+            clearTimeout(global.state.moveTimeout);
+            global.render.break();
+            global.render.resume();
+            (async()=>{
+                for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
+                global.render.reset();
+            })();
+        break;
+        case"Home":
+            ev.preventDefault();
+            if(ev.ctrlKey)Object.assign(global.state,global.defaults[global.state.algo]);
+            else{
+                const{rmin,rmax,imin,imax}=global.defaults[global.state.algo];
+                global.state.rmin=rmin;
+                global.state.rmax=rmax;
+                global.state.imin=imin;
+                global.state.imax=imax;
+            }
+            setCanvasSizeAuto();
+            redraw();
+            if(!ev.shiftKey)break;
+            //! fall through
+        case"r":
+            ev.preventDefault();
+            html.canvas.style.setProperty("--zoom",String(global.state.zoom=1));
+            html.canvas.style.setProperty("--panX",String(global.state.panX=0));
+            html.canvas.style.setProperty("--panY",String(global.state.panY=0));
+        break;
+        case"f":ev.preventDefault();full();break;
+        case"c":ev.preventDefault();copyView();break;
+        case"s":ev.preventDefault();copyImage();break;
+        case"C":ev.preventDefault();downloadView();break;
+        case"S":ev.preventDefault();downloadImage();break;
+        case"0":
+            if(ev.ctrlKey)break;
+            ev.preventDefault();
+            global.state.limit=10;
+            redraw();
+        break;
+        case"1":ev.preventDefault();global.state.limit=20;redraw();break;
+        case"2":ev.preventDefault();global.state.limit=50;redraw();break;
+        case"3":ev.preventDefault();global.state.limit=100;redraw();break;
+        case"4":ev.preventDefault();global.state.limit=200;redraw();break;
+        case"5":ev.preventDefault();global.state.limit=500;redraw();break;
+        case"6":ev.preventDefault();global.state.limit=1000;redraw();break;
+        case"7":ev.preventDefault();global.state.limit=2000;redraw();break;
+        case"8":ev.preventDefault();global.state.limit=5000;redraw();break;
+        case"9":ev.preventDefault();global.state.limit=10000;redraw();break;
+        case"+":
+            if(ev.ctrlKey)break;
+            ev.preventDefault();
+            zoom(ev.altKey?1.1:1.5);
+        break;
+        case"-":
+            if(ev.ctrlKey)break;
+            ev.preventDefault();
+            zoom(ev.altKey?10/11:2/3);
+        break;
+        case"ArrowUp":ev.preventDefault();move((ws=>ev.shiftKey?ws*.25:ev.ctrlKey?ws*.1:ev.altKey?1:ws*.01)(Math.min(global.state.winW,global.state.winH)),true);break;
+        case"ArrowLeft":ev.preventDefault();move((ws=>ev.shiftKey?ws*.25:ev.ctrlKey?ws*.1:ev.altKey?1:ws*.01)(Math.min(global.state.winW,global.state.winH)),false);break;
+        case"ArrowDown":ev.preventDefault();move(-(ws=>ev.shiftKey?ws*.25:ev.ctrlKey?ws*.1:ev.altKey?1:ws*.01)(Math.min(global.state.winW,global.state.winH)),true);break;
+        case"ArrowRight":ev.preventDefault();move(-(ws=>ev.shiftKey?ws*.25:ev.ctrlKey?ws*.1:ev.altKey?1:ws*.01)(Math.min(global.state.winW,global.state.winH)),false);break;
+    }
+},{passive:false});
 
 window.addEventListener("resize",()=>{
     "use strict";
     global.render.pause();
     html.loading.removeAttribute("value");
-    clearTimeout(global.var.resizeTimeout);
-    global.var.resizeTimeout=setTimeout(async()=>{
+    html.canvas.style.setProperty("--dpr",String(window.devicePixelRatio));
+    clearTimeout(global.state.resizeTimeout);
+    global.state.resizeTimeout=setTimeout(async()=>{
         "use strict";
-        const
-            width=Math.trunc(window.innerWidth*window.devicePixelRatio),
-            height=Math.trunc(window.innerHeight*window.devicePixelRatio),
-            [newWidth,newHeight]=(scaleWidth=>scaleWidth>width?[width,html.canvas.height*(width/html.canvas.width)]:[scaleWidth,height])(html.canvas.width*(height/html.canvas.height));
+        global.state.winW=Math.trunc(window.innerWidth*window.devicePixelRatio);
+        global.state.winH=Math.trunc(window.innerHeight*window.devicePixelRatio);
+        const[newWidth,newHeight]=scaleToWindow(html.canvas.width,html.canvas.height);
         if(html.canvas.width!==newWidth||html.canvas.height!==newHeight){
             global.render.break();
             global.render.resume();
             for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
             global.render.reset();
-            html.canvas.width=newWidth;
-            html.canvas.height=newHeight;
+            setCanvasSize(newWidth,newHeight);
             redraw();
         }else global.render.resume();
-        global.var.resizeWidth=width;
-        global.var.resizeHeight=height;
-    },500);
+    },1000);
 },{passive:true});
 
+// TODO paste view (text field)
+// .addEventListener("paste",ev=>{
+//     ev.preventDefault();
+//     setView(ev.clipboardData?.getData("text")??"");
+// },{passive:false});
+
+//#region init
+
 // TODO ~ override defaults from browser history or session storage (in that order)
-global.render.reset();
-html.canvas.width=html.canvas.height=Math.trunc(Math.min(window.innerWidth,window.innerHeight)*window.devicePixelRatio);
-// global.var.limit=20;
-// global.var.color=[0xFF,0,0];
-// global.var.cmin=0;
-// global.var.cmax=1;
-// global.var.variance=1;
+setCanvasSizeAuto();
+window.dispatchEvent(new UIEvent("resize"));
 redraw();
 
-// w*h :limit,color,cmin,cmax,variance: rmin,rmax,imin,imax
-//// `${html.canvas.width}*${html.canvas.height} :${global.var.limit},${global.var.hueMin},${global.var.hueMax},${global.var.variance}: ${global.var.rmin},${global.var.rmax},${global.var.imin},${global.var.imax}`
-// 456*934 :40,,,,1: -1.543859649122807,-1.087719298245614,-0.4561403508771931,0.47894736842105257
-// 456*423 :40,,,,1: -1.2697123798918186,-1.269711317648577,-0.05364440711967647,-0.053643537040994095
-// 456*415 :40,,,,1: -1.7119711824918802,-1.7103616834092463,-0.0007379682834486906,0.0007348129921448072
-// 456*449 :1000,,,,1: -1.2633476816177294,-1.2612927316298181,-0.4091261394904118,-0.4070882372911135
-// 461*654 :1000,,2,-8,1: -1.3491422102216521,-1.349123980122724,-0.06195093301182616,-0.061925031470704626
+// TODO (format) log short description and functions to dev-console
 
-// TODO context-menu: save as PNG / image to clipboard / redraw / reset zoom / settings>dialog / css-checker>white,light,dark,black,off / mandelbrot-type>smooth(default),spiky,noodles (recalc) / css-smooth>off(default),low,medium,high / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200% / link to GitHub repo
+//#region todos
+
+// TODO context-menu: see HTML / resolution>custom(edited in settings),1%,5%,10%,1/4,1/3,1/2,2/3,3/4,1:1,150%,200%
 // TODO > settings-dialog: pos (recalc new areas) / scale (recalc) / hue start,end (draw preview)
-// TODO save mandelbrot values in typed f32array for faster rerendering when chaning color ?
-// TODO use webworkers for each row ~ multithreading ? https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#dedicated_workers
+// TODO ! save mandelbrot values in Float32Array (min 1.4e-45 then 0, max 3.402823e38 then Infinity) for faster rerendering when changing color ?
+// TODO > (x+yi) when calculating -y and a +y exists use that and skip calculation ~ same for +y → -y (mirrored along real axis) in mandelbrot
+// TODO option to lower render resolution % or px ~ set in resize
+// TODO ! use webworkers (for each row ? also for moving with keyboard !) ~ multithreading :: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#dedicated_workers
+// TODO ? shared array buffer ~ populate set number of pixels not cols/rows ~ x0y0→x300y2 by 350*350 (max 1k pixels each)
+// TODO > settings to en-/disable webworkers | max webworkers
 // TODO mouse crosshair ~ draw box and click inside = zoom to that area ~ zoom out ? history of zoom steps [rectangle:posXY,minXY,maxXY] ~ undo/redo stack (also set browser history)
 // TODO pan & zoom (only visual zoom no calculation) controls like in GIF-decoder
-// TODO draw full screen ? base is still square (no redraw when resize larger window axis)
+// TODO visual feedback when changing algorithm via keyboard
+
+// TODO zoom animation ~
+// > 0:200,null,-1.3,1.99:-0.7479202944425645,-0.7479202944425407,-0.10792434653846888,-0.10792434653844807
+// > 0:2000,null,-1.3,1.99:-0.7325826375853152,-0.7325826375853023,0.2411471363788535,0.24114713637886623
+// TODO test if only mouse or keyboard is possible (touch?)
