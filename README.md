@@ -21,7 +21,7 @@ Link → <https://maz01001.github.io/AlmondBreadErkunder/> (path is case sensiti
 | pause              | toggle pause/resume current render                  |
 | end/cancel         | cancel the current render                           |
 | home/pos1          | reset zoom and position of the current view         |
-| f                  | expand view to window size                          |
+| F                  | expand view to window size                          |
 | S                  | copy image as PNG to clipboard                      |
 | shift+S            | download image as PNG file                          |
 | C                  | copy position as text to clipboard                  |
