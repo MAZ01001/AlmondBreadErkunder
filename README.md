@@ -27,7 +27,7 @@ Link → <https://maz01001.github.io/AlmondBreadErkunder/> (path is case sensiti
 | C                  | copy position as text to clipboard                  |
 | shift+C            | download position as text as TXT file               |
 | page-up/down       | change mandelbrot style (smooth/spiky/noodles)      |
-| ctrl+page-up/down  | change render style (top2bottom/random)             |
+| shift+page-up/down | change render style (top2bottom/random)             |
 | +/-                | zoom in/out (less with alt)                         |
 | ↑←↓→               | move view (alt: slow, ctrl: fast, shift: very fast) |
 | 0 to 9             | change limit: 10, 20, 50, 100, 200 (default), etc.  |
