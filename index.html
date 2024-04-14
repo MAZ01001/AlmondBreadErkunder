@@ -23,6 +23,77 @@
     <canvas id="canvas">HTML5 canvas not supported</canvas>
     <canvas id="cursor"></canvas>
     <progress id="loading"></progress>
+    <div id="context" class="hide">
+        <h3><a target="_blank" rel="noopener noreferrer" href="https://github.com/MAZ01001/AlmondBreadErkunder" title="click to open project page on GitHub">AlmondBreadErkunder</a></h3>
+        <span>from <span id="complexStart" title="click to copy exact value">-2-1.3&ii;</span></span>
+        <span>to <span id="complexEnd" title="click to copy exact value">+0.6+1.3&ii;</span></span>
+        <input type="button" value="settings" title="open settings menu">
+        <fieldset><legend title="redraw or pause/stop rendering">render</legend>
+            <input type="button" id="render" value="render" title="click to zoom in to the selected area or recalculate the current view (or press enter/middle-mouse)">
+            <input type="button" id="pause" value="pause" data-toggle="0" title="click to toggle pause/resume for current render (or press pause)">
+            <input type="button" id="stop" value="stop" title="click to cancel the current render (or press end/cancel)">
+        </fieldset>
+        <fieldset><legend title="copy/download image">save image</legend>
+            <input type="button" id="copyIMG" value="copy" title="click to copy image as PNG to clipboard (or press S)">
+            <input type="button" id="downloadIMG" value="download" title="click to download image as PNG file (or press shift+S)">
+            <input type="number" id="widthIMG" placeholder="100%" min="1" max="1000000000" step="1" title="set custom image width for copy/download (set empty to use current window size)">
+            <input type="number" id="heightIMG" placeholder="100%" readonly disabled title="calculated image height for copy/download">
+        </fieldset>
+        <fieldset><legend title="copy/paste zoom, position, and other view parameters">copy/paste view</legend>
+            <input type="button" id="copyTXT" value="copy" title="click to copy text to clipboard (or press C)">
+            <input type="button" id="downloadTXT" value="download" title="click to download text as TXT file (or press shift+C)">
+            <input type="text" id="pasteTXT" placeholder="paste" title="paste text from clipboad here">
+        </fieldset>
+        <fieldset><legend title="reset zoom/position of plot/canvas">reset</legend>
+            <input type="button" id="resetView" value="zoom" title="reset zoom and position of the current plot (or press home/pos1)">
+            <input type="button" id="resetCanvas" value="canvas" title="reset zoom and position of the canvas (or press R)">
+            <input type="button" id="reset" value="both" title="reset zoom and position of the plot and the canvas (or press shift+home/pos1)">
+        </fieldset>
+        <fieldset><legend title="customize background color and texture">background</legend>
+            <select id="background" title="choose a background color and texture">
+                <option disabled>choose</option>
+                <option value="0" title="no background (transparent)">off</option>
+                <option value="1" title="#000">black</option>
+                <option value="2" title="#333">dark</option>
+                <option value="3" title="#AAA">bright</option>
+                <option value="4" title="#FFF">white</option>
+                <option value="5" title="#000 & #111 (default)" selected>checkered black</option>
+                <option value="6" title="#222 & #333">checkered dark</option>
+                <option value="7" title="#888 & #AAA">checkered bright</option>
+                <option value="8" title="#EEE & #FFF">checkered white</option>
+            </select>
+        </fieldset>
+    </div>
+    <div id="settings" class="hide">
+        <div id="handle">#</div>
+        <h2>Settings</h2>
+        <!-- TODO -->
+        <select id="algorithm" title="choose an algorithm (or press page-up/down, hold ctrl to change mid render)">
+            <option disabled>choose algorithm</option>
+            <option value="0" title="&forall; z &in; &complexes; &and; &forall; x, y &in; &reals; ; f(z) = z² + (x+y&ii;) ; IF |z| &lt; &Sqrt;8 &and; ITERATION &lt; LIMIT" selected>Mandelbrot - smooth</option>
+            <option value="1" title="&forall; z &in; &complexes; &and; &forall; x, y &in; &reals; ; f(z) = z² + (x+y&ii;) ; IF &realpart;(z) * &imagpart;(z) &lt; 3 &and; ITERATION &lt; LIMIT">Mandelbrot - spiky</option>
+            <option value="2" title="&forall; z &in; &complexes; &and; &forall; x, y &in; &reals; ; f(z) = z² + (x+y&ii;) ; IF &realpart;(z) + &imagpart;(z) &gt; -3 &and; ITERATION &lt; LIMIT">Mandelbrot - noodles</option>
+            <!-- TODO -->
+        </select>
+        <label for="limit" title="set iteration limit (LIMIT in equasions)">limit <input type="number" id="limit" value="200" min="1" max="1000000" step="1"></label>
+        <select id="preset">
+            <option value="" disabled selected>load preset</option>
+            <option value="0:20,null,-1.75,-0.5:-2,0.6,-1.3,1.3">Mandelbrot: fire</option>
+            <option value="1:20,[255,0,0],0,1:-2,0.6,-1.3,1.3">Mandelbrot: spiky red</option>
+            <option value="0:40,null,-1.3,1.99:-1.7119711824918802,-1.7103616834092463,-0.0007379682834486906,0.0007348129921448072">Mandelbrot: egg</option>
+            <option value="1:100,[255,153,0],-0.2,4:-2,0.6,-1.3,1.3">Mandelbrot: gold flake</option>
+            <option value="2:200,[0,255,0],0,3:-2,0.6,-1.3,1.3">Mandelbrot: forest</option>
+            <option value="0:200,[255,255,255],-0.08,4:-2,0.6,-1.3,1.3">Mandelbrot: ghost</option>
+            <option value="0:200,null,-1.3,1.99:-0.5615981883896173,-0.5615771680444638,-0.6418882347160703,-0.6418673679524799">Mandelbrot: egg royal</option>
+            <option value="0:500,[255,255,255],0,1:-1.0600818661812739,-0.9638576566282111,-0.3866605293144414,-0.27223219493746437">Mandelbrot: stars</option>
+            <option value="0:500,null,-1.3,1.99:-0.7211983512405886,-0.7210267740676773,-0.23019498074169503,-0.23002508762593302">Mandelbrot: spiral</option>
+            <option value="1:1000,null,-1.3,1.99:-1.2633476816177294,-1.2612927316298181,-0.4091261394904118,-0.4070882372911135">Mandelbrot: lightning</option>
+            <option value="1:1000,null,2,-8:-1.3491422102216521,-1.349123980122724,-0.06195093301182616,-0.061925031470704626">Mandelbrot: fire close-up</option>
+            <option value="1:1000,[255,0,34],0,10:-2,0.6,-1.3,1.3">Mandelbrot: eclipsed</option>
+            <option value="0:2000,null,-1.3,1.99:-1.2697123798918186,-1.269711317648577,-0.05364440711967647,-0.053643537040994095">Mandelbrot: diagonal</option>
+            <option value="0:2000,null,-1.3,1.99:-1.269711814829257,-1.2697117644914,-0.053643962062239814,-0.053643904525880734">Mandelbrot: stalagmite</option>
+        </select>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
