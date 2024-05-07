@@ -36,19 +36,16 @@ const hueToRGB=hue=>[1/3,0,-1/3].map(v=>{
  */
 const formatComplex=(real,imag)=>`${real<0?real:`+${real}`}${imag<0?imag:`+${imag}`}\u2148`;
 /**
- * ## Create an array with random indecies (unique and in range 0 to {@linkcode len}-1)
- * @param {number} len length of array
- * @returns {number[]} array with indecies as values in random order
+ * ## Calculate quotient and remainder from the division of two given numbers
+ * @param {number} nom - nominator
+ * @param {number} den - denominator
+ * @returns {[number,number]} `[quotient,remainder]`
  */
-const randomOrder=len=>{
+const divQR=(nom,den)=>{
     "use strict";
-    const arr=new Array(len);
-    for(let i=len-1;i>0;i--){
-        const j=Math.trunc(Math.random()*(i+1));
-        [arr[i],arr[j]]=[arr[j]??j,arr[i]??i];
-    }
-    return arr;
-};
+    const q=Math.trunc(nom/den);
+    return[q,nom-(q*den)];
+}
 
 //#region HTML & global obj
 
@@ -74,21 +71,21 @@ const global=Object.freeze({
             "use strict";
             if(limit<=1)return limit;
             let i=1;
-            for(let cr=real,ci=imag;i<limit&&cr*cr+ci*ci<8;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            for(let cr=real,ci=imag;i<limit&&cr*cr+ci*ci<8;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
             return i<limit?i/limit:Infinity;
         },
         (real,imag,limit)=>{//~ [1] Mandelbrot - spiky
             "use strict";
             if(limit<=1)return limit;
             let i=1;
-            for(let cr=real,ci=imag;i<limit&&cr*ci<3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            for(let cr=real,ci=imag;i<limit&&cr*ci<3;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
             return i<limit?i/limit:Infinity;
         },
         (real,imag,limit)=>{//~ [2] Mandelbrot - noodles
             "use strict";
             if(limit<=1)return limit;
             let i=1;
-            for(let cr=real,ci=imag;i<limit&&cr+ci>-3;i++)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
+            for(let cr=real,ci=imag;i<limit&&cr+ci>-3;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
             return i<limit?i/limit:Infinity;
         },
         // TODO ? implement other algoorithms/plots
@@ -104,8 +101,8 @@ const global=Object.freeze({
         // return Math.atan2(imag,real)*maxI*(2*Math.PI)**-1;
     ]),
     // TODO ↓ see draw()
-    /**@type {readonly["top2bottom","random"]} - render order ({@linkcode draw})*/
-    order:Object.freeze(["top2bottom","random"]),
+    /**@type {readonly["random","top2bottom"]} - render order ({@linkcode draw})*/
+    order:Object.freeze(["random","top2bottom"]),
     /**@type {readonly Readonly<{limit:number,rmin:number,rmax:number,imin:number,imax:number,color:[number,number,number]|null,cmin:number,cmax:number}>[]} ordered list of default states for each {@linkcode global.algo} (same indecies)*/
     defaults:Object.freeze([
         Object.freeze({limit:200,rmin:-2,rmax:.6,imin:-1.3,imax:1.3,color:null,cmin:-1.3,cmax:1.99}),
@@ -171,6 +168,8 @@ const global=Object.freeze({
         winW:Math.trunc(window.innerWidth*window.devicePixelRatio),
         /**@type {number} current window height (physical pixels)*/
         winH:Math.trunc(window.innerHeight*window.devicePixelRatio),
+        /**@type {number[]} pixel indecies for rendering in a random order ({@linkcode html.canvas.width} * {@linkcode html.canvas.height})*/
+        randomOrder:[],
         /**@type {number} timeout ID for move delay*/
         moveTimeout:NaN,
         /**@type {number} scale of {@linkcode html.canvas} - does not change resolution but influences coordinates when choosing area*/
@@ -208,14 +207,25 @@ const global=Object.freeze({
 
 /**
  * ## Set {@linkcode html.canvas} size, set global composite operation to `copy`, and disable image smoothing
- * only clears canvas when size is different
+ * only clears canvas when size is different and updates {@linkcode global.state.randomOrder}
  * @param {number} width - new width
  * @param {number} [height] - new height - default same as {@linkcode width}
  */
 const setCanvasSize=(width,height)=>{
     height??=width;
-    if(width!==html.canvas.width)html.canvas.width=width;
-    if(height!==html.canvas.height)html.canvas.height=height;
+    if(
+        height!==html.canvas.height
+        ||width!==html.canvas.width
+    ){
+        html.canvas.width=width;
+        html.canvas.height=height;
+        const arrRef=global.state.randomOrder;
+        for(let i=(arrRef.length=html.canvas.width*html.canvas.height)-1;i>=0;--i)arrRef[i]=i;
+        for(let i=arrRef.length-1;i>0;--i){
+            const j=Math.trunc(Math.random()*(i+1));
+            if(i!==j)[arrRef[i],arrRef[j]]=[arrRef[j],arrRef[i]];
+        }
+    }
     html.cnx.globalCompositeOperation="copy";
     html.cnx.imageSmoothingEnabled=false;
 };
@@ -276,36 +286,12 @@ const draw=async()=>{
     const
         fullPixels=html.canvas.width*html.canvas.height,
         partPixels=1/fullPixels;
-    // TODO render order ~ top2bottom (default), left2right, bottom2top, right2left, outwards-vertical, outwards-horizontal, outwards-spiral (square), inwards-..., random (see below)
+    // TODO render order ~ top2bottom, left2right, bottom2top, right2left, outwards-vertical, outwards-horizontal, outwards-spiral (square), inwards-..., random (default) (see below)
     switch(global.order[global.state.order]){
-        case "random":
-            const
-                img=new ImageData(html.canvas.width,html.canvas.height),
-                po=randomOrder(fullPixels);
-            for(let p=0;p<fullPixels;p++){
-                const
-                    [x,y]=[po[p]%html.canvas.width,Math.trunc(po[p]/html.canvas.width)],
-                    color=getColor(global.algo[global.state.algo](
-                        map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
-                        map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
-                        global.state.limit
-                    ));
-                if(color===null)img.data[(y*html.canvas.width+x)*4+3]=0;
-                else img.data.set(color,(y*html.canvas.width+x)*4);
-                html.loading.value=p*partPixels;
-                if(p%global.state.pixelDelay===0){
-                    html.cnx.putImageData(img,0,0);
-                    await new Promise(E=>window.requestAnimationFrame(E));
-                }
-                if(await global.render.check())break;
-            }
-            html.cnx.putImageData(img,0,0);
-        break;
-        case "top2bottom":
-        default:
+        case"top2bottom":
             const pixelLine=new ImageData(html.canvas.width,1);
-            outer:for(let x=0,y=0;y<html.canvas.height;y++){
-                for(x=0;x<html.canvas.width;x++){
+            outer:for(let pixelsDrawn=0,x=0,y=0;y<html.canvas.height;++y){
+                for(x=0;x<html.canvas.width;++x){
                     const color=getColor(global.algo[global.state.algo](
                         map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
                         map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
@@ -313,9 +299,9 @@ const draw=async()=>{
                     ));
                     if(color===null)pixelLine.data[x*4+3]=0;
                     else pixelLine.data.set(color,x*4);
-                    const pixels=y*html.canvas.width+x;
-                    html.loading.value=pixels*partPixels;
-                    if(pixels%global.state.pixelDelay===0){
+                    html.loading.value=(y*html.canvas.width+x)*partPixels;
+                    if(++pixelsDrawn>=global.state.pixelDelay){
+                        pixelsDrawn=0;
                         html.cnx.putImageData(pixelLine,0,y);
                         await new Promise(E=>window.requestAnimationFrame(E));
                     }
@@ -323,6 +309,29 @@ const draw=async()=>{
                 }
                 html.cnx.putImageData(pixelLine,0,y);
             }
+        break;
+        case"random"://! fall through
+        default:
+            const img=new ImageData(html.canvas.width,html.canvas.height);
+            for(let pixelsDrawn=0,pixel=0;pixel<fullPixels;++pixel){
+                const
+                    [y,x]=divQR(global.state.randomOrder[pixel],html.canvas.width),
+                    color=getColor(global.algo[global.state.algo](
+                        map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
+                        map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
+                        global.state.limit
+                    ));
+                if(color===null)img.data[(y*html.canvas.width+x)*4+3]=0;
+                else img.data.set(color,(y*html.canvas.width+x)*4);
+                html.loading.value=pixel*partPixels;
+                if(++pixelsDrawn>=global.state.pixelDelay){
+                    pixelsDrawn=0;
+                    html.cnx.putImageData(img,0,0);
+                    await new Promise(E=>window.requestAnimationFrame(E));
+                }
+                if(await global.render.check())break;
+            }
+            html.cnx.putImageData(img,0,0);
         break;
     }
     html.loading.classList.add("hide");
@@ -447,13 +456,12 @@ const move=async(amount,vertical)=>{
     for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
     global.render.reset();
     global.render.start();
-    // TODO ? also follow global.order[global.state.render]
-    // TODO > when random redraw directly
+    const amountMinus=amount<0;
     if(vertical??false){
         html.cnx.drawImage(
             html.canvas,
-            0,amount<0?-amount:0,html.canvas.width,html.canvas.height-Math.abs(amount),
-            0,amount<0?0:amount,html.canvas.width,html.canvas.height-Math.abs(amount)
+            0,amountMinus?-amount:0,html.canvas.width,html.canvas.height-Math.abs(amount),
+            0,amountMinus?0:amount,html.canvas.width,html.canvas.height-Math.abs(amount)
         );
         const amountImag=Math.abs(global.state.imin-global.state.imax)*(-amount/html.canvas.height);
         global.state.imin-=amountImag;
@@ -461,8 +469,8 @@ const move=async(amount,vertical)=>{
         //~ draw missing pixels
         await new Promise(E=>setTimeout(E,10));
         const pixelLine=new ImageData(html.canvas.width,1);
-        outer:for(let x=0,y=amount<0?html.canvas.height+amount:0;amount<0?y<html.canvas.height:y<amount;y++){
-            for(x=0;x<html.canvas.width;x++){
+        outer:for(let pixelsDrawn=0,x=0,y=amountMinus?html.canvas.height+amount:0;amountMinus?y<html.canvas.height:y<amount;++y){
+            for(x=0;x<html.canvas.width;++x){
                 const color=getColor(global.algo[global.state.algo](
                     map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
                     map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
@@ -470,7 +478,10 @@ const move=async(amount,vertical)=>{
                 ));
                 if(color==null)pixelLine.data[x*4+3]=0;
                 else pixelLine.data.set(color,x*4);
-                if((y*html.canvas.width+x)%global.state.pixelDelay===0)await new Promise(E=>window.requestAnimationFrame(E));
+                if(++pixelsDrawn>=global.state.pixelDelay){
+                    pixelsDrawn=0;
+                    await new Promise(E=>window.requestAnimationFrame(E));
+                }
                 if(await global.render.check())break outer;
             }
             html.cnx.putImageData(pixelLine,0,y);
@@ -478,16 +489,16 @@ const move=async(amount,vertical)=>{
     }else{
         html.cnx.drawImage(
             html.canvas,
-            amount<0?-amount:0,0,html.canvas.width-Math.abs(amount),html.canvas.height,
-            amount<0?0:amount,0,html.canvas.width-Math.abs(amount),html.canvas.height
+            amountMinus?-amount:0,0,html.canvas.width-Math.abs(amount),html.canvas.height,
+            amountMinus?0:amount,0,html.canvas.width-Math.abs(amount),html.canvas.height
         );
         const amountReal=Math.abs(global.state.rmin-global.state.rmax)*(-amount/html.canvas.width);
         global.state.rmin+=amountReal;
         global.state.rmax+=amountReal;
         //~ draw missing pixels
         const pixelLine=new ImageData(1,html.canvas.height);
-        outer:for(let x=amount<0?html.canvas.width+amount:0,y=0;amount<0?x<html.canvas.width:x<amount;x++){
-            for(y=0;y<html.canvas.height;y++){
+        outer:for(let pixelDelay=0,x=amountMinus?html.canvas.width+amount:0,y=0;amountMinus?x<html.canvas.width:x<amount;++x){
+            for(y=0;y<html.canvas.height;++y){
                 const color=getColor(global.algo[global.state.algo](
                     map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
                     map(y,html.canvas.height-1,0,global.state.imin,global.state.imax),
@@ -495,7 +506,10 @@ const move=async(amount,vertical)=>{
                 ));
                 if(color==null)pixelLine.data[y*4+3]=0;
                 else pixelLine.data.set(color,y*4);
-                if((x*html.canvas.height+y)%global.state.pixelDelay===0)await new Promise(E=>window.requestAnimationFrame(E));
+                if(++pixelDelay>=global.state.pixelDelay){
+                    pixelDelay=0;
+                    await new Promise(E=>window.requestAnimationFrame(E));
+                }
                 if(await global.render.check())break outer;
             }
             html.cnx.putImageData(pixelLine,x,0);
@@ -503,7 +517,7 @@ const move=async(amount,vertical)=>{
     }
     global.render.end();
     clearTimeout(global.state.moveTimeout);
-    global.state.moveTimeout=setTimeout(()=>redraw(),1000);
+    global.state.moveTimeout=setTimeout(()=>redraw(),0x3E8);
 }
 
 //#region read/write view
