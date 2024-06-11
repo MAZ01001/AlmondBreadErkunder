@@ -447,29 +447,36 @@ const zoom=async percent=>{
 };
 /**
  * ## Move in a direction with current view
- * @param {number} amount - amout of pixels to move to the (-) right or (+) left
- * @param {boolean} [vertical] - if `true` use {@linkcode amount} to go (-) down or (+) up - default `false`
+ * @param {number} amount - amout of pixels to move to the right (-) or left (+)
+ * @param {boolean} vertical - if `true` use {@linkcode amount} to go down (-) or up (+)
  */
 const move=async(amount,vertical)=>{
     global.render.break();
     global.render.resume();
     for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
     global.render.reset();
-    global.render.start();
-    const amountMinus=amount<0;
-    if(vertical??false){
-        html.cnx.drawImage(
-            html.canvas,
-            0,amountMinus?-amount:0,html.canvas.width,html.canvas.height-Math.abs(amount),
-            0,amountMinus?0:amount,html.canvas.width,html.canvas.height-Math.abs(amount)
-        );
+    if(vertical){
         const amountImag=Math.abs(global.state.imin-global.state.imax)*(-amount/html.canvas.height);
         global.state.imin-=amountImag;
         global.state.imax-=amountImag;
-        //~ draw missing pixels
-        await new Promise(E=>setTimeout(E,10));
+    }else{
+        const amountReal=Math.abs(global.state.rmin-global.state.rmax)*(-amount/html.canvas.width);
+        global.state.rmin+=amountReal;
+        global.state.rmax+=amountReal;
+    }
+    if(global.order[global.state.order]==="random")return redraw();
+    //~ move canvas and draw missing pixels
+    const reverse=amount<0,
+        amountAbs=reverse?-amount:amount;
+    global.render.start();
+    if(vertical){
+        html.cnx.drawImage(
+            html.canvas,
+            0,reverse?amountAbs:0,html.canvas.width,html.canvas.height-amountAbs,
+            0,reverse?0:amountAbs,html.canvas.width,html.canvas.height-amountAbs
+        );
         const pixelLine=new ImageData(html.canvas.width,1);
-        outer:for(let pixelsDrawn=0,x=0,y=amountMinus?html.canvas.height+amount:0;amountMinus?y<html.canvas.height:y<amount;++y){
+        outer:for(let pixelsDrawn=0,x=0,y=reverse?html.canvas.height+amount:0;reverse?y<html.canvas.height:y<amount;++y){
             for(x=0;x<html.canvas.width;++x){
                 const color=getColor(global.algo[global.state.algo](
                     map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
@@ -489,15 +496,11 @@ const move=async(amount,vertical)=>{
     }else{
         html.cnx.drawImage(
             html.canvas,
-            amountMinus?-amount:0,0,html.canvas.width-Math.abs(amount),html.canvas.height,
-            amountMinus?0:amount,0,html.canvas.width-Math.abs(amount),html.canvas.height
+            reverse?amountAbs:0,0,html.canvas.width-amountAbs,html.canvas.height,
+            reverse?0:amountAbs,0,html.canvas.width-amountAbs,html.canvas.height
         );
-        const amountReal=Math.abs(global.state.rmin-global.state.rmax)*(-amount/html.canvas.width);
-        global.state.rmin+=amountReal;
-        global.state.rmax+=amountReal;
-        //~ draw missing pixels
         const pixelLine=new ImageData(1,html.canvas.height);
-        outer:for(let pixelDelay=0,x=amountMinus?html.canvas.width+amount:0,y=0;amountMinus?x<html.canvas.width:x<amount;++x){
+        outer:for(let pixelDelay=0,x=reverse?html.canvas.width+amount:0,y=0;reverse?x<html.canvas.width:x<amount;++x){
             for(y=0;y<html.canvas.height;++y){
                 const color=getColor(global.algo[global.state.algo](
                     map(x,0,html.canvas.width-1,global.state.rmin,global.state.rmax),
