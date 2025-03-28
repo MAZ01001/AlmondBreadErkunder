@@ -11,7 +11,6 @@
  * @returns {number} maped number
  */
 const map=(n,x,y,x2,y2)=>{
-    "use strict";
     const yx=y-x;
     return((n-x)*(y2-x2)+yx*x2)*yx**-1;
 };
@@ -21,7 +20,6 @@ const map=(n,x,y,x2,y2)=>{
  * @returns {[number,number,number]} `[R, G, B]` in range [0-255] (float)
  *///@ts-ignore map() does not change the size of the array
 const hueToRGB=hue=>[1/3,0,-1/3].map(v=>{
-    "use strict";
     const t=(n=>n<0?n+1:n>1?n-1:n)(hue+v);
     if(t<1/6)return t*0x5FA;
     if(t<.5)return 0xFF;
@@ -42,7 +40,6 @@ const formatComplex=(real,imag)=>`${real<0?real:`+${real}`}${imag<0?imag:`+${ima
  * @returns {[number,number]} `[quotient,remainder]`
  */
 const divQR=(nom,den)=>{
-    "use strict";
     const q=Math.trunc(nom/den);
     return[q,nom-(q*den)];
 }
@@ -68,21 +65,18 @@ const global=Object.freeze({
     /**@type {readonly((real:number,imag:number,limit:number)=>number)[]} ordered list of algorithms - assume result is [0-1] and clip at +-`Infinity` - also see {@linkcode global.defaults}*/
     algo:Object.freeze([
         (real,imag,limit)=>{//~ [0] Mandelbrot - smooth
-            "use strict";
             if(limit<=1)return limit;
             let i=1;
             for(let cr=real,ci=imag;i<limit&&cr*cr+ci*ci<8;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
             return i<limit?i/limit:Infinity;
         },
         (real,imag,limit)=>{//~ [1] Mandelbrot - spiky
-            "use strict";
             if(limit<=1)return limit;
             let i=1;
             for(let cr=real,ci=imag;i<limit&&cr*ci<3;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
             return i<limit?i/limit:Infinity;
         },
         (real,imag,limit)=>{//~ [2] Mandelbrot - noodles
-            "use strict";
             if(limit<=1)return limit;
             let i=1;
             for(let cr=real,ci=imag;i<limit&&cr+ci>-3;++i)[cr,ci]=[(cr*cr-ci*ci)+real,2*cr*ci+imag];
@@ -134,7 +128,6 @@ const global=Object.freeze({
         end(){this.#running=false;}
         /**call during calculation/draw for an opportunity to pause/resume/break*/
         async check(){
-            "use strict";
             for(;this.#pause;await new Promise(E=>setTimeout(E,100)));
             return this.#break;
         }
@@ -237,7 +230,6 @@ const setCanvasSize=(width,height)=>{
  * @returns {[number,number]} new `[width,height]` of area
  */
 const scaleToWindow=(width,height,inv)=>{
-    "use strict";
     if(inv??false){
         const scaledWidth=global.state.winW*(height/global.state.winH);
         if(scaledWidth<width)return[width,global.state.winH*(width/global.state.winW)];
@@ -258,7 +250,6 @@ const setCanvasSizeAuto=()=>setCanvasSize(...scaleToWindow(global.state.rmax-glo
  * @returns {[number,number,number,number]|null} `[R,G,B,A]` in range [0-255] or `null` when clipped
  */
 const getColor=value=>{
-    "use strict";
     if(!Number.isFinite(value))return null;
     const saturation=value*(global.state.cmax-global.state.cmin)+global.state.cmin;
     if(global.state.color==null)return[...hueToRGB(saturation),0xFF];
@@ -278,7 +269,6 @@ const getColor=value=>{
  * (inverts Y so it increases from bottom to top on screen)
  */
 const draw=async()=>{
-    "use strict";
     global.render.start();
     html.loading.removeAttribute("value");
     html.loading.classList.remove("hide");
@@ -347,7 +337,6 @@ const draw=async()=>{
  * @param {boolean} [restore] - [optional] if `true` restores original values after {@linkcode draw} has finished - default `true`
  */
 const redraw=async(limit,colors,algo,order,restore)=>{
-    "use strict";
     global.render.break();
     global.render.resume();
     for(;global.render.running;await new Promise(E=>setTimeout(E,0)));
@@ -395,7 +384,6 @@ const full=async()=>{
  * @param {boolean} [pixels] - if `true` treads values as screen-space pixel coordinates depending on {@linkcode html.canvas}, {@linkcode global.state.zoom}, and {@linkcode global.state.panX}/{@linkcode global.state.panY}
  */
 const zoomArea=async(left,top,right,bottom,pixels)=>{
-    "use strict";
     if(left-right===0||top-bottom===0)return;
     global.render.break();
     global.render.resume();
@@ -432,7 +420,6 @@ const zoomArea=async(left,top,right,bottom,pixels)=>{
  * @throws {RangeError} if {@linkcode percent} is 0
  */
 const zoom=async percent=>{
-    "use strict";
     if(percent===1)return;
     if(percent===0)throw new RangeError("[zoom] percent must not be 0");
     const
@@ -538,7 +525,6 @@ const parseViewRegex=(jsNum=>new RegExp(`^(${jsNum})? ?: ?(${jsNum})? ?, ?(null|
  * @param {string} str - a string in format: `algo : limit , color , cmin , cmax , algo : rmin , rmax , imin , imax` - all parameters and whitespace are optional
  */
 const setView=async str=>{
-    "use strict";
     const m=str.trim().match(parseViewRegex);
     if(m==null)return;
     global.state.algo=m[1]==null?0:Math.min(Math.max(Math.trunc(Number(m[1])),0),Number.MAX_SAFE_INTEGER);
@@ -592,7 +578,6 @@ const downloadImage=async scaledWidth=>{
 
 //~ cursor canvas
 window.requestAnimationFrame(function cursor(){
-    "use strict";
     //~ no coordinates if the mouse has not moved yet
     if(Number.isNaN(global.mouse.moveTimeout)){window.requestAnimationFrame(cursor);return;}
     html.cursor.width=global.state.winW;
@@ -636,7 +621,6 @@ window.requestAnimationFrame(function cursor(){
 //#region event listeners
 
 window.addEventListener("mousemove",ev=>{
-    "use strict";
     global.mouse.x=ev.clientX*window.devicePixelRatio;
     global.mouse.y=ev.clientY*window.devicePixelRatio;
     global.mouse.move=true;
@@ -644,7 +628,6 @@ window.addEventListener("mousemove",ev=>{
     global.mouse.moveTimeout=setTimeout(()=>global.mouse.move=false,3000);
 },{passive:true});
 window.addEventListener("mousedown",ev=>{
-    "use strict";
     //~ 0 left ; 1 middle ; 2 right
     if(ev.button===1)window.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter"}));
     if(ev.button!==0)return;
@@ -655,7 +638,6 @@ window.addEventListener("mousedown",ev=>{
     global.mouse.dragY=ev.clientY*window.devicePixelRatio;
 },{passive:true});
 window.addEventListener("mouseup",ev=>{
-    "use strict";
     if(!global.mouse.hold)return;
     global.mouse.hold=false;
     global.mouse.upX=ev.clientX*window.devicePixelRatio;
@@ -664,7 +646,6 @@ window.addEventListener("mouseup",ev=>{
 },{passive:true});
 
 window.addEventListener("keydown",ev=>{
-    "use strict";
     console.log(ev.key);
     // TODO key "ContextMenu" also show/hide the context menu (and shift focus)
     // TODO don't prevent default in settings or context menu (all keys)
@@ -764,13 +745,11 @@ window.addEventListener("keydown",ev=>{
 },{passive:false});
 
 window.addEventListener("resize",()=>{
-    "use strict";
     global.render.pause();
     html.loading.removeAttribute("value");
     html.canvas.style.setProperty("--dpr",String(window.devicePixelRatio));
     clearTimeout(global.state.resizeTimeout);
     global.state.resizeTimeout=setTimeout(async()=>{
-        "use strict";
         global.state.winW=Math.trunc(window.innerWidth*window.devicePixelRatio);
         global.state.winH=Math.trunc(window.innerHeight*window.devicePixelRatio);
         const[newWidth,newHeight]=scaleToWindow(html.canvas.width,html.canvas.height);
