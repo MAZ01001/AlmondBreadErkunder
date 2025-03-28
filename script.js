@@ -43,6 +43,29 @@ const divQR=(nom,den)=>{
     const q=Math.trunc(nom/den);
     return[q,nom-(q*den)];
 };
+/**
+ * [internal] Decode hash (#) from given URL
+ * tries parsing {@linkcode href} to URL and returns empty string if it fails
+ * @param {string|URL} href - encoded URL
+ * @returns {string} decoded string (not including #)
+ */
+const _GetHashOfURL_=href=>{
+    const url=(()=>{
+        try{
+            if(href instanceof URL)return decodeURI(href.href);
+            const parse=URL.parse(href)?.href;
+            return parse==null?href:decodeURI(parse);
+        }catch(err){
+            if(err instanceof URIError)
+                if(href instanceof URL)return href.href;
+                else return URL.parse(href)?.href??href;
+            throw err;
+        }
+    })();
+    const hashIndex=url.indexOf("#");
+    if(hashIndex===-1)return"";
+    return url.substring(hashIndex+1);
+};
 
 //#region HTML & global obj
 
@@ -770,12 +793,24 @@ window.addEventListener("resize",()=>{
     },1000);
 },{passive:true});
 
+window.addEventListener("hashchange",ev=>{
+    const hash=_GetHashOfURL_(ev.newURL);
+    if(hash.length===0)return;
+    ev.preventDefault();
+    setView(hash);
+},{passive:false});
+
 //#region init
 
 // TODO ~ override defaults from browser history or session storage (in that order)
 setCanvasSizeAuto();
 window.dispatchEvent(new UIEvent("resize"));
 redraw();
+//~ load from URL hash (#) if valid
+(()=>{
+    const hash=_GetHashOfURL_(location.href);
+    if(hash.length!==0)setView(hash);
+})();
 
 // TODO (format) log short description and functions to dev-console
 
