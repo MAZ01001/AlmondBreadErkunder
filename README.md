@@ -4,13 +4,11 @@ A simple Mandelbrot explorer, calculated in native JavaScript and rendered to HT
 
 Link → <https://maz01001.github.io/AlmondBreadErkunder/> (path is case sensitive)
 
->
-> [!NOTE]
+> [!IMPORTANT]
 >
 > Very much Work-In-Progress
 >
 > Things may change!
->
 
 ## Controls
 
@@ -31,3 +29,11 @@ Link → <https://maz01001.github.io/AlmondBreadErkunder/> (path is case sensiti
 | +/-                | zoom in/out (less with alt)                         |
 | ↑←↓→               | move view (alt: slow, ctrl: fast, shift: very fast) |
 | 0 to 9             | change limit: 10, 20, 50, 100, 200 (default), etc.  |
+
+## Examples
+
+<https://maz01001.github.io/AlmondBreadErkunder/#0:200,null,-1.3,1.99:-0.7479202944425645,-0.7479202944425407,-0.10792434653846888,-0.10792434653844807>
+
+<https://maz01001.github.io/AlmondBreadErkunder/#0:2000,null,-1.3,1.99:-0.7325826375853152,-0.7325826375853023,0.2411471363788535,0.24114713637886623>
+
+<https://maz01001.github.io/AlmondBreadErkunder/#0:10000,null,-1.3,1.99:-0.7436438870371698,-0.7436438870371482,-0.13182590420532267,-0.13182590420530219>
