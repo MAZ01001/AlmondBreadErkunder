@@ -42,7 +42,7 @@ const formatComplex=(real,imag)=>`${real<0?real:`+${real}`}${imag<0?imag:`+${ima
 const divQR=(nom,den)=>{
     const q=Math.trunc(nom/den);
     return[q,nom-(q*den)];
-}
+};
 
 //#region HTML & global obj
 
@@ -646,7 +646,7 @@ window.addEventListener("mouseup",ev=>{
 },{passive:true});
 
 window.addEventListener("keydown",ev=>{
-    console.log(ev.key);
+    // console.log(ev.key);
     // TODO key "ContextMenu" also show/hide the context menu (and shift focus)
     // TODO don't prevent default in settings or context menu (all keys)
     switch(ev.key){
@@ -744,6 +744,12 @@ window.addEventListener("keydown",ev=>{
     }
 },{passive:false});
 
+// TODO paste view (text field)
+// .addEventListener("paste",ev=>{
+//     ev.preventDefault();
+//     setView(ev.clipboardData?.getData("text")??"");
+// },{passive:false});
+
 window.addEventListener("resize",()=>{
     global.render.pause();
     html.loading.removeAttribute("value");
@@ -763,12 +769,6 @@ window.addEventListener("resize",()=>{
         }else global.render.resume();
     },1000);
 },{passive:true});
-
-// TODO paste view (text field)
-// .addEventListener("paste",ev=>{
-//     ev.preventDefault();
-//     setView(ev.clipboardData?.getData("text")??"");
-// },{passive:false});
 
 //#region init
 
@@ -796,4 +796,6 @@ redraw();
 // TODO zoom animation ~
 // > 0:200,null,-1.3,1.99:-0.7479202944425645,-0.7479202944425407,-0.10792434653846888,-0.10792434653844807
 // > 0:2000,null,-1.3,1.99:-0.7325826375853152,-0.7325826375853023,0.2411471363788535,0.24114713637886623
+// > 0:10000,null,-1.3,1.99:-0.7436438870371698,-0.7436438870371482,-0.13182590420532267,-0.13182590420530219
+// (ffmpeg zoom default) > ((x,y)=>((global.state.limit=10000),zoomArea(x-Number.EPSILON,y-Number.EPSILON,x+Number.EPSILON,y+Number.EPSILON,false)))(-0.743643887037158704752191506114774,-0.131825904205311970493132056385139)
 // TODO test if only mouse or keyboard is possible (touch?)
